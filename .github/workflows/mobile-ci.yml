@@ -1,0 +1,14 @@
+# Placeholder for M0. Replaced in M6+ with eslint, tsc, and jest.
+name: mobile-ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Placeholder
+        run: echo "Mobile CI placeholder - real checks arrive in M6."

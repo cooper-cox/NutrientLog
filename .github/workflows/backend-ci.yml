@@ -1,0 +1,14 @@
+# Placeholder for M0. Replaced in M1+ with lint, type-check, tests, and Docker build.
+name: backend-ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Placeholder
+        run: echo "Backend CI placeholder - real checks arrive in M1-M2."
