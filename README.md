@@ -1,8 +1,11 @@
 # NutrientLog
 
+[![Backend CI](https://github.com/cooper-cox/NutrientLog/actions/workflows/backend-ci.yml/badge.svg?branch=main)](https://github.com/cooper-cox/NutrientLog/actions/workflows/backend-ci.yml)
+[![Mobile CI](https://github.com/cooper-cox/NutrientLog/actions/workflows/mobile-ci.yml/badge.svg?branch=main)](https://github.com/cooper-cox/NutrientLog/actions/workflows/mobile-ci.yml)
+
 A nutrition-first calorie and nutrient tracker for iPhone. It tells you what your body needs and why, not just how many calories you ate.
 
-**Status:** v0.1 in progress (milestone M0: repo and tooling).
+**Status:** v0.1 in progress (milestone M1: backend skeleton).
 
 ## Stack
 
@@ -20,6 +23,51 @@ mobile/     Expo app
 docs/       Project plan, build plans, per-version phone test checklists
 .github/    CI workflows
 ```
+
+## Running the backend
+
+Requires Docker Desktop.
+
+```
+docker compose up --build
+```
+
+Then open:
+
+- http://localhost:8000/health returns `{"status":"ok"}`
+- http://localhost:8000/health/db returns `{"status":"ok","database":"reachable"}`
+- http://localhost:8000/docs shows the interactive API docs
+
+The API container applies database migrations on startup. Stop everything with `Ctrl+C`, and add `-v` to `docker compose down` to also wipe the database.
+
+## Developing the backend
+
+Run Postgres in Docker and the API on your machine:
+
+```
+docker compose up -d db
+
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+
+export DATABASE_URL=postgresql+psycopg://nutrientlog:nutrientlog@localhost:5432/nutrientlog
+alembic upgrade head
+uvicorn app.main:app --reload
+```
+
+The same checks CI runs (from `backend/`, with the virtual environment active):
+
+```
+ruff check . && ruff format --check .
+mypy app migrations tests
+pytest tests/unit
+pytest tests/integration      # needs the database and migrations from above
+alembic check                 # fails if models and migrations disagree
+```
+
+Changing a table: edit the model in `app/models/`, then run `alembic revision --autogenerate -m "describe change"` and review the generated file in `migrations/versions/`.
 
 ## Docs
 
