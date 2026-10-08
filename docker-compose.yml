@@ -1,0 +1,29 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: nutrientlog
+      POSTGRES_PASSWORD: nutrientlog
+      POSTGRES_DB: nutrientlog
+    ports:
+      - "127.0.0.1:5432:5432" # reachable from this computer only
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nutrientlog -d nutrientlog"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://nutrientlog:nutrientlog@db:5432/nutrientlog
+    ports:
+      - "8000:8000" # reachable from the phone over Wi-Fi
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
