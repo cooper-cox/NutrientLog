@@ -5,7 +5,7 @@
 
 A nutrition-first calorie and nutrient tracker for iPhone. It tells you what your body needs and why, not just how many calories you ate.
 
-**Status:** v0.1 in progress (M1 backend skeleton done; M2 calculation modules in progress).
+**Status:** v0.1 in progress. Backend skeleton and calculation modules are done; M3 (users, profile, goals) is in review. Next: M4, the Expo app on the iPhone.
 
 ## Stack
 
@@ -39,6 +39,22 @@ Then open:
 - http://localhost:8000/docs shows the interactive API docs
 
 The API container applies database migrations on startup. Stop everything with `Ctrl+C`, and add `-v` to `docker compose down` to also wipe the database.
+
+### Trying the API by hand
+
+Everything under `/api/v1` can be tried from the docs page at http://localhost:8000/docs:
+
+1. Open `POST /api/v1/users`, click **Try it out**, then **Execute**. Copy the `token` from the response. It is shown only once.
+2. Click **Authorize** at the top of the page, paste the token, and confirm.
+3. Open `PUT /api/v1/users/me/profile`, click **Try it out**, edit the example survey answers, and **Execute**. The response contains your profile and your calorie and macro targets.
+4. `GET /api/v1/goals/current` returns the targets again, and `GET /api/v1/users/me/profile` returns the saved survey.
+
+| Endpoint | What it does |
+|---|---|
+| `POST /api/v1/users` | Creates an anonymous user and returns a secret token |
+| `GET /api/v1/users/me/profile` | The saved survey answers (404 until onboarding is done) |
+| `PUT /api/v1/users/me/profile` | Saves the survey and calculates a new goal |
+| `GET /api/v1/goals/current` | The current calorie and macro targets, with how they were calculated |
 
 ## Developing the backend
 
