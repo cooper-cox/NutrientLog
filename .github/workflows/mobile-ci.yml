@@ -1,4 +1,4 @@
-# Placeholder until M6, when the Expo app exists and this runs eslint, tsc, and jest.
+# Placeholder until M4, when the Expo app exists and this runs eslint, tsc, and jest.
 # The job is named "mobile" so branch protection can require a check with that name.
 name: mobile-ci
 
@@ -12,4 +12,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Placeholder
-        run: echo "Mobile CI placeholder - real checks arrive in M6."
+        run: echo "Mobile CI placeholder - real checks arrive in M4."
