@@ -5,7 +5,7 @@
 
 A nutrition-first calorie and nutrient tracker for iPhone. It tells you what your body needs and why, not just how many calories you ate.
 
-**Status:** v0.1 in progress (milestone M1: backend skeleton).
+**Status:** v0.1 in progress (M1 backend skeleton done; M2 calculation modules in progress).
 
 ## Stack
 
