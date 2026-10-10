@@ -8,7 +8,7 @@ their group.
 could ride along with another milestone. *Before others* means it must be fixed before anyone but
 the author uses the app.
 
-Last reviewed after: M3 (users, profile, goals).
+Last reviewed after: M5 (onboarding screen).
 
 ---
 
@@ -21,23 +21,27 @@ Last reviewed after: M3 (users, profile, goals).
   - Fix: keep the block and show a friendly explanation. If we ever serve minors, build a
     separate "healthy eating" mode with no weight targets, based on pediatric references and
     reviewed by a professional, and handle parental consent and the App Store age rating.
-  - Revisit: only if we decide to serve minors. Not planned.
+  - Revisit: only if we decide to serve minors. Not planned. (As of M5 the survey shows the
+    server's "age must be between 18 and 100" message under the birth date box.)
 
-- [ ] **L2. No handling of medical situations.** Pregnancy or breastfeeding, diabetes, kidney
+- [ ] **L2 (partly done). No handling of medical situations.** Pregnancy or breastfeeding, diabetes, kidney
   disease, a history of eating disorders, and some medications all change what a safe target is.
   - Why: the formulas assume a healthy adult, and there is no "not medical advice" text in the
     app yet.
   - Fix: add the disclaimer to onboarding and settings (easy), then a short screening question
     that, when answered "yes", shows a "talk to your doctor" message and turns off weight-loss
     targets.
-  - Revisit: disclaimer text *Quick* (M5). Screening *Before others*.
+  - **Progress (M5):** the disclaimer text is now on the survey and results screens. It is not in
+    a settings screen yet (there isn't one). The screening question is still to do.
+  - Revisit: screening *Before others*; disclaimer in settings when settings exist.
 
-- [ ] **L3. The sex question only offers "male" and "female".**
+- [x] **L3. The sex question only offers "male" and "female".** *Fixed in M5.*
   - Why: the calorie formula has one version of its constant for each, and the calorie floor
     differs too.
   - Fix: label it "Sex (used for the calorie formula)" and add "prefer not to say", which uses the
     average of both versions, with a short explanation.
-  - Revisit: *Quick*, or after the prototype.
+  - Done: the survey says "Sex (used for the calorie formula)" and offers "Prefer not to say"
+    (average of both formulas, minimum 1,350 kcal).
 
 - [ ] **L4. Fixed input limits** (age 18-100, height 100-250 cm, weight 30-300 kg).
   - Why: sanity rails that reject typos and absurd values.
@@ -61,12 +65,13 @@ Last reviewed after: M3 (users, profile, goals).
     calories. Check against published guidance before changing.
   - Revisit: low priority.
 
-- [ ] **L7. Goal weight is saved but not used.** Choosing "gain" with a goal weight below the
+- [x] **L7. Goal weight is saved but not used.** *Fixed in M5.* Choosing "gain" with a goal weight below the
   current weight is accepted silently, and there's no "about N weeks to goal" estimate.
   - Why: it was collected for later, and no check was written.
   - Fix: validate that the goal weight agrees with the goal type (error or gentle warning) and
     estimate the time to goal from the weekly rate.
-  - Revisit: *Quick* (M5), when the survey screen exists.
+  - Done: a goal weight that points the wrong way is rejected with a message under the goal
+    weight box, and the results screen shows "about N weeks" to the goal.
 
 - [ ] **L8. The macro split is one fixed recipe** (protein 1.8 g per kg, fat 25% of calories, carbs
   the rest). Big surpluses give very high carbs (for example 472 g, about 59% of calories).
@@ -146,13 +151,15 @@ Last reviewed after: M3 (users, profile, goals).
   - Fix: the weight log, then keep the profile weight in sync with the latest entry.
   - Revisit: *Roadmap* (v0.4).
 
-- [ ] **L19. Two shapes of error message.** Automatic validation errors come back as a list of
+- [x] **L19. Two shapes of error message.** *Fixed in M5.* Automatic validation errors come back as a list of
   field problems, while our own checks (like "age must be between 18 and 100") come back as a
   single sentence. The app has to handle both.
   - Why: they come from different parts of the server.
   - Fix: one consistent error format that names the field, so the survey screen can show each
     message under the right box.
   - Revisit: *Quick*, best done in M5 when the survey screen needs it.
+  - Done: every error now has a plain-sentence `detail`, and problems with a specific answer also
+    carry `errors: [{field, message}]`, which the survey screen shows under the right box.
 
 - [ ] **L20. CI doesn't start the whole Docker Compose setup.** It builds the Docker image but
   never runs it, so a mistake in `docker-compose.yml` would only show up on your Mac.
@@ -187,3 +194,22 @@ Last reviewed after: M3 (users, profile, goals).
   needs Node 22 and you have Node 20.
   - Fix: upgrade Node and the library together.
   - Revisit: after the prototype.
+
+- [ ] **L26. Expo Go may insist on a free Expo account.** On first run, Expo Go refused to open
+  the app until you were logged in to the same Expo account on both the phone and the Mac.
+  - Why: a requirement of the Expo development tools, not of our code.
+  - Fix: none needed for development. Note it in the README so it is not a surprise on a new
+    phone or computer. A real (TestFlight/App Store) build doesn't use Expo Go.
+  - Revisit: when preparing a real build.
+
+- [ ] **L27. The birth date is three typed boxes** (month, day, year) instead of a date picker,
+  and the weekly pace offers a few fixed choices (gain 0.25 or 0.5 kg; lose 0.25, 0.5 or 0.75 kg).
+  - Why: typed boxes are simple, work the same everywhere and are easy to test. Fixed paces keep
+    people inside the safe limits.
+  - Fix: a native date picker; a free-form pace (still capped by the server).
+  - Revisit: v0.7 (function polish) or v0.8 (look and feel).
+
+- [ ] **L28. The survey is a single long scrolling form,** and nothing is saved until you press
+  the button. Closing the app halfway means starting again.
+  - Fix: split into a few short steps and keep a draft on the phone.
+  - Revisit: v0.7.

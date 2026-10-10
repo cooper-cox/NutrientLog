@@ -30,10 +30,10 @@ function StatusRow({ label, state }: { label: string; state: CheckState }) {
 }
 
 /**
- * M4's only screen: proves the whole chain works (phone, Wi-Fi, server, database).
- * It is replaced by the real screens in the next milestones.
+ * Proves the whole chain works (phone, Wi-Fi, server, database). Reached from the results
+ * screen, or from the error screen when the server can't be reached.
  */
-export function HealthScreen() {
+export function HealthScreen({ onBack }: { onBack?: () => void }) {
   const insets = useSafeAreaInsets();
   const { api, database, refresh, isChecking } = useServerHealth();
   const hasProblem = api.kind === 'error' || database.kind === 'error';
@@ -77,6 +77,17 @@ export function HealthScreen() {
       >
         <Text style={styles.buttonText}>{isChecking ? 'Checking…' : 'Check again'}</Text>
       </Pressable>
+
+      {onBack ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          onPress={onBack}
+          style={styles.backButton}
+        >
+          <Text style={styles.backText}>Back</Text>
+        </Pressable>
+      ) : null}
     </ScrollView>
   );
 }
@@ -104,4 +115,6 @@ const styles = StyleSheet.create({
   buttonDisabled: { backgroundColor: '#888888' },
   buttonPressed: { opacity: 0.8 },
   buttonText: { color: '#ffffff', fontSize: 18, fontWeight: '600' },
+  backButton: { marginTop: 12, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  backText: { fontSize: 18, color: '#111111', textDecorationLine: 'underline' },
 });

@@ -143,6 +143,7 @@ def test_the_calorie_floor_is_applied_and_says_so(client: TestClient, auth: dict
         birth_date="1986-10-08",  # 40 years old
         height_cm=150,
         weight_kg=45,
+        goal_weight_kg=42,
         activity_level="sedentary",
         goal_type="lose",
         rate_kg_per_week=0.5,
@@ -253,3 +254,81 @@ def test_a_rejected_profile_changes_nothing(client: TestClient, auth: dict[str, 
     put_profile(client, auth, birth_date="2010-01-01")
     assert client.get("/api/v1/users/me/profile", headers=auth).status_code == 404
     assert client.get("/api/v1/goals/current", headers=auth).status_code == 404
+
+
+# --- one error format, goal-weight check, weeks to goal, "prefer not to say" ----------------
+
+
+def test_validation_errors_name_the_field_and_use_plain_sentences(
+    client: TestClient, auth: dict[str, str]
+) -> None:
+    body = put_profile(client, auth, timezone="Mars/Olympus", height_cm=-1).json()
+    assert body["detail"] == "Some answers need fixing."
+    problems = {item["field"]: item["message"] for item in body["errors"]}
+    assert problems["timezone"] == "unknown timezone; use a name like America/Los_Angeles"
+    assert set(problems) == {"timezone", "height_cm"}
+
+
+def test_range_errors_use_the_same_shape(client: TestClient, auth: dict[str, str]) -> None:
+    body = put_profile(client, auth, birth_date="2010-01-01").json()
+    assert isinstance(body["detail"], str)
+    assert [item["field"] for item in body["errors"]] == ["birth_date"]
+    assert "age" in body["errors"][0]["message"]
+
+
+@pytest.mark.parametrize(
+    ("changes", "word"),
+    [
+        ({"goal_type": "gain", "goal_weight_kg": 75}, "above"),
+        ({"goal_type": "gain", "goal_weight_kg": 80}, "above"),
+        ({"goal_type": "lose", "goal_weight_kg": 85}, "below"),
+    ],
+)
+def test_a_goal_weight_that_points_the_wrong_way_is_rejected(
+    client: TestClient, auth: dict[str, str], changes: dict[str, Any], word: str
+) -> None:
+    response = put_profile(client, auth, **changes)
+    assert response.status_code == 422
+    error = response.json()["errors"][0]
+    assert error["field"] == "goal_weight_kg"
+    assert word in error["message"]
+    assert client.get("/api/v1/users/me/profile", headers=auth).status_code == 404
+
+
+def test_maintain_and_missing_goal_weights_are_accepted(
+    client: TestClient, auth: dict[str, str]
+) -> None:
+    assert put_profile(client, auth, goal_type="maintain", goal_weight_kg=70).status_code == 200
+    assert put_profile(client, auth, goal_weight_kg=None).status_code == 200
+
+
+def test_weeks_to_goal_is_estimated_from_the_rate_used(
+    client: TestClient, auth: dict[str, str]
+) -> None:
+    # 5 kg to gain at 0.25 kg/week = 20 weeks.
+    assert put_profile(client, auth).json()["goal"]["weeks_to_goal"] == 20
+    # Rate 2.0 is capped to 0.5, so 5 kg takes 10 weeks.
+    assert put_profile(client, auth, rate_kg_per_week=2.0).json()["goal"]["weeks_to_goal"] == 10
+
+
+def test_there_is_no_estimate_without_a_goal_weight_or_a_rate(
+    client: TestClient, auth: dict[str, str]
+) -> None:
+    assert put_profile(client, auth, goal_weight_kg=None).json()["goal"]["weeks_to_goal"] is None
+    assert put_profile(client, auth, rate_kg_per_week=0).json()["goal"]["weeks_to_goal"] is None
+
+
+def test_prefer_not_to_say_uses_the_average_of_the_two_formulas(
+    client: TestClient, auth: dict[str, str]
+) -> None:
+    # Male BMR is 1780 (+5), female 1614 (-161); no answer uses -78 = 1697, their average.
+    goal = put_profile(client, auth, sex="no_answer").json()["goal"]
+    assert goal["bmr"] == 1697
+    assert client.get("/api/v1/users/me/profile", headers=auth).json()["sex"] == "no_answer"
+
+
+def test_the_current_goal_endpoint_also_has_the_estimate(
+    client: TestClient, auth: dict[str, str]
+) -> None:
+    put_profile(client, auth)
+    assert client.get("/api/v1/goals/current", headers=auth).json()["weeks_to_goal"] == 20

@@ -17,6 +17,8 @@ from enum import StrEnum
 class Sex(StrEnum):
     MALE = "male"
     FEMALE = "female"
+    # "Prefer not to say". The formula uses the average of the male and female versions.
+    NO_ANSWER = "no_answer"
 
 
 class ActivityLevel(StrEnum):
@@ -47,13 +49,25 @@ KCAL_PER_KG_BODY_WEIGHT = 7700
 # Safety limits (easy to tune in one place).
 MAX_GAIN_KG_PER_WEEK = 0.5
 MAX_LOSE_KG_PER_WEEK = 1.0
-CALORIE_FLOOR: dict[Sex, int] = {Sex.MALE: 1500, Sex.FEMALE: 1200}
+CALORIE_FLOOR: dict[Sex, int] = {Sex.MALE: 1500, Sex.FEMALE: 1200, Sex.NO_ANSWER: 1350}
+
+# The constant added in the Mifflin-St Jeor equation. "No answer" is the average of the two.
+BMR_SEX_CONSTANT: dict[Sex, int] = {Sex.MALE: 5, Sex.FEMALE: -161, Sex.NO_ANSWER: -78}
 
 # Accepted input ranges. Anything outside is rejected rather than guessed at.
 # Under-18 targets need different handling, so they are not supported.
 MIN_AGE_YEARS, MAX_AGE_YEARS = 18, 100
 MIN_HEIGHT_CM, MAX_HEIGHT_CM = 100.0, 250.0
 MIN_WEIGHT_KG, MAX_WEIGHT_KG = 30.0, 300.0
+
+
+class InvalidInputError(ValueError):
+    """An answer is outside the accepted range. `field` names the survey answer at fault."""
+
+    def __init__(self, field: str, message: str) -> None:
+        super().__init__(message)
+        self.field = field
+        self.message = message
 
 
 @dataclass(frozen=True)
@@ -69,7 +83,7 @@ class CalorieTarget:
 
 def bmr_mifflin_st_jeor(weight_kg: float, height_cm: float, age_years: int, sex: Sex) -> float:
     base = 10 * weight_kg + 6.25 * height_cm - 5 * age_years
-    return base + 5 if sex is Sex.MALE else base - 161
+    return base + BMR_SEX_CONSTANT[sex]
 
 
 def tdee(bmr: float, activity: ActivityLevel) -> float:
@@ -88,13 +102,22 @@ def daily_adjustment_kcal(goal: GoalType, rate_kg_per_week: float) -> float:
 
 def _validate(age_years: int, height_cm: float, weight_kg: float, rate_kg_per_week: float) -> None:
     if not MIN_AGE_YEARS <= age_years <= MAX_AGE_YEARS:
-        raise ValueError(f"age must be between {MIN_AGE_YEARS} and {MAX_AGE_YEARS}")
+        raise InvalidInputError(
+            "birth_date", f"age must be between {MIN_AGE_YEARS} and {MAX_AGE_YEARS}"
+        )
     if not MIN_HEIGHT_CM <= height_cm <= MAX_HEIGHT_CM:
-        raise ValueError(f"height must be between {MIN_HEIGHT_CM} and {MAX_HEIGHT_CM} cm")
+        raise InvalidInputError(
+            "height_cm", f"height must be between {MIN_HEIGHT_CM} and {MAX_HEIGHT_CM} cm"
+        )
     if not MIN_WEIGHT_KG <= weight_kg <= MAX_WEIGHT_KG:
-        raise ValueError(f"weight must be between {MIN_WEIGHT_KG} and {MAX_WEIGHT_KG} kg")
+        raise InvalidInputError(
+            "weight_kg", f"weight must be between {MIN_WEIGHT_KG} and {MAX_WEIGHT_KG} kg"
+        )
     if rate_kg_per_week < 0:
-        raise ValueError("rate_kg_per_week cannot be negative; use the goal type for direction")
+        raise InvalidInputError(
+            "rate_kg_per_week",
+            "rate_kg_per_week cannot be negative; use the goal type for direction",
+        )
 
 
 def calculate_calorie_target(

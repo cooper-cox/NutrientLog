@@ -7,8 +7,9 @@ from sqlalchemy.orm import Session
 from app.api.deps import CurrentUser
 from app.core.clock import utc_now
 from app.core.db import get_session
-from app.schemas.profile import GoalOut, ProfileIn, ProfileOut, ProfileSaved
+from app.schemas.profile import ProfileIn, ProfileOut, ProfileSaved
 from app.schemas.user import UserCreated
+from app.services import goals as goals_service
 from app.services import profiles as profiles_service
 from app.services import users as users_service
 
@@ -41,10 +42,7 @@ def save_profile(
     now: Annotated[datetime, Depends(utc_now)],
 ) -> ProfileSaved:
     """Save the survey answers and calculate a new goal from them."""
-    try:
-        goal = profiles_service.save_profile(session, user, data, now)
-    except profiles_service.InvalidProfileError as error:
-        raise HTTPException(status_code=422, detail=str(error)) from error
+    goal = profiles_service.save_profile(session, user, data, now)
     profile = profiles_service.get_profile(user)
     assert profile is not None  # save_profile always sets it
-    return ProfileSaved(profile=profile, goal=GoalOut.model_validate(goal))
+    return ProfileSaved(profile=profile, goal=goals_service.goal_out(goal, user))

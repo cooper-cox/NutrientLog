@@ -5,7 +5,7 @@
 
 A nutrition-first calorie and nutrient tracker for iPhone. It tells you what your body needs and why, not just how many calories you ate.
 
-**Status:** v0.1 in progress. Backend (health checks, users, profile, goals) is done; M4 (the Expo app on the iPhone, with real mobile CI) is in review. Next: M5, the onboarding screen.
+**Status:** v0.1 in progress. Done: backend (health, users, profile, goals), the Expo app, and CI for both. M5 (the onboarding survey and results screen) is in review. Next: M6, foods on the backend.
 
 ## Stack
 
@@ -53,7 +53,7 @@ Everything under `/api/v1` can be tried from the docs page at http://localhost:8
 |---|---|
 | `POST /api/v1/users` | Creates an anonymous user and returns a secret token |
 | `GET /api/v1/users/me/profile` | The saved survey answers (404 until onboarding is done) |
-| `PUT /api/v1/users/me/profile` | Saves the survey and calculates a new goal |
+| `PUT /api/v1/users/me/profile` | Saves the survey and calculates a new goal. Answers it can't accept come back as `422` with `errors: [{field, message}]` |
 | `GET /api/v1/goals/current` | The current calorie and macro targets, with how they were calculated |
 
 ## Running the app on your iPhone
@@ -67,7 +67,11 @@ npm ci                     # first time only
 npx expo start             # in a second terminal
 ```
 
-Scan the QR code with the iPhone Camera and open it in Expo Go. Allow the "Local Network" question the first time. The screen should show **OK** for both the API and the database. Do not use `--tunnel`: the app finds the API by using the Mac's address.
+Scan the QR code with the iPhone Camera and open it in Expo Go. Allow the "Local Network" question the first time. The first screen is the onboarding survey; after you finish it the app shows your calorie and macro targets (and remembers you next time). **Check server connection** on that screen shows the API and database status. Do not use `--tunnel`: the app finds the API by using the Mac's address.
+
+Expo Go may ask you to be logged in to the same free Expo account on both the phone and the Mac (`npx expo login` on the Mac). See limitation L26.
+
+Starting over: wipe the database with `docker compose down -v`, then `docker compose up` again. The app notices the server no longer knows it and creates a new user when you save the survey again.
 
 To point the app at a different server, set `EXPO_PUBLIC_API_URL` (see `mobile/.env.example`).
 
