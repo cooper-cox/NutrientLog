@@ -19,4 +19,4 @@ def get_current_goal(
     goal = goals_service.get_current_goal(session, user)
     if goal is None:
         raise HTTPException(status_code=404, detail="no goal yet; save a profile first")
-    return GoalOut.model_validate(goal)
+    return goals_service.goal_out(goal, user)

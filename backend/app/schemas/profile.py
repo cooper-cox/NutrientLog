@@ -74,6 +74,9 @@ class GoalOut(BaseModel):
     rate_kg_per_week: float
     rate_was_capped: bool
     floor_was_applied: bool
+    # About how many weeks until the goal weight at the weekly rate used. None if there is no
+    # goal weight or no weekly rate. Filled in by `goal_out`, not stored.
+    weeks_to_goal: int | None = None
 
 
 class ProfileSaved(BaseModel):

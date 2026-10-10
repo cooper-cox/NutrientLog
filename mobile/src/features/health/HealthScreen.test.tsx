@@ -64,7 +64,9 @@ describe('HealthScreen', () => {
   });
 
   it('shows a problem with only the database when the API itself is fine', async () => {
-    mockGetDatabaseHealth.mockRejectedValue(new ApiError('The server returned an error (503).', 503));
+    mockGetDatabaseHealth.mockRejectedValue(
+      new ApiError('The server returned an error (503).', 503),
+    );
 
     renderScreen();
 

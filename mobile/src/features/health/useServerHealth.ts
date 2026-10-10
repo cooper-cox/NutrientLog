@@ -3,9 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getDatabaseHealth, getHealth } from '../../api/health';
 
 export type CheckState =
-  | { kind: 'loading' }
-  | { kind: 'ok'; detail: string }
-  | { kind: 'error'; message: string };
+  { kind: 'loading' } | { kind: 'ok'; detail: string } | { kind: 'error'; message: string };
 
 type ServerHealth = {
   api: CheckState;

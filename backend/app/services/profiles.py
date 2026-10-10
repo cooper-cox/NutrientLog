@@ -4,14 +4,11 @@ from sqlalchemy.orm import Session
 
 from app.calc import dates
 from app.calc.calorie_target import calculate_calorie_target
+from app.calc.goals import check_goal_weight
 from app.calc.macros import calculate_macro_targets
 from app.models import Goal, User
 from app.repositories import goals as goals_repo
 from app.schemas.profile import ProfileIn, ProfileOut, UnitPreference
-
-
-class InvalidProfileError(Exception):
-    """The survey answers can't be turned into a safe target (e.g. under 18, absurd weight)."""
 
 
 def save_profile(session: Session, user: User, data: ProfileIn, now: datetime) -> Goal:
@@ -22,18 +19,18 @@ def save_profile(session: Session, user: User, data: ProfileIn, now: datetime) -
     """
     today = dates.local_today(data.timezone, now)
 
-    try:
-        target = calculate_calorie_target(
-            sex=data.sex,
-            age_years=dates.age_on(data.birth_date, today),
-            height_cm=data.height_cm,
-            weight_kg=data.weight_kg,
-            activity=data.activity_level,
-            goal=data.goal_type,
-            rate_kg_per_week=data.rate_kg_per_week,
-        )
-    except ValueError as error:
-        raise InvalidProfileError(str(error)) from error
+    # These raise InvalidInputError (naming the survey answer at fault) for under 18, absurd
+    # weights, a goal weight that points the wrong way, and so on.
+    target = calculate_calorie_target(
+        sex=data.sex,
+        age_years=dates.age_on(data.birth_date, today),
+        height_cm=data.height_cm,
+        weight_kg=data.weight_kg,
+        activity=data.activity_level,
+        goal=data.goal_type,
+        rate_kg_per_week=data.rate_kg_per_week,
+    )
+    check_goal_weight(data.goal_type, data.weight_kg, data.goal_weight_kg)
     macros = calculate_macro_targets(target.calories, data.weight_kg)
 
     user.name = data.name

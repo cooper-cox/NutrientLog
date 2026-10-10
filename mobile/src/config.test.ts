@@ -28,9 +28,9 @@ describe('resolveApiBaseUrl', () => {
   });
 
   it('prefers an explicit EXPO_PUBLIC_API_URL', () => {
-    expect(
-      resolveApiBaseUrl({ envUrl: 'http://10.0.0.9:9000', hostUri: '192.168.1.5:8081' }),
-    ).toBe('http://10.0.0.9:9000');
+    expect(resolveApiBaseUrl({ envUrl: 'http://10.0.0.9:9000', hostUri: '192.168.1.5:8081' })).toBe(
+      'http://10.0.0.9:9000',
+    );
   });
 
   it('removes trailing slashes and whitespace from the explicit address', () => {
