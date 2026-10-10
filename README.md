@@ -5,7 +5,7 @@
 
 A nutrition-first calorie and nutrient tracker for iPhone. It tells you what your body needs and why, not just how many calories you ate.
 
-**Status:** v0.1 in progress. Backend skeleton and calculation modules are done; M3 (users, profile, goals) is in review. Next: M4, the Expo app on the iPhone.
+**Status:** v0.1 in progress. Backend (health checks, users, profile, goals) is done; M4 (the Expo app on the iPhone, with real mobile CI) is in review. Next: M5, the onboarding screen.
 
 ## Stack
 
@@ -55,6 +55,29 @@ Everything under `/api/v1` can be tried from the docs page at http://localhost:8
 | `GET /api/v1/users/me/profile` | The saved survey answers (404 until onboarding is done) |
 | `PUT /api/v1/users/me/profile` | Saves the survey and calculates a new goal |
 | `GET /api/v1/goals/current` | The current calorie and macro targets, with how they were calculated |
+
+## Running the app on your iPhone
+
+Needs Node 20.19 or newer, and the Expo Go app on the iPhone. The phone and the Mac must be on the same Wi-Fi.
+
+```
+docker compose up          # in one terminal: starts the API and database
+cd mobile
+npm ci                     # first time only
+npx expo start             # in a second terminal
+```
+
+Scan the QR code with the iPhone Camera and open it in Expo Go. Allow the "Local Network" question the first time. The screen should show **OK** for both the API and the database. Do not use `--tunnel`: the app finds the API by using the Mac's address.
+
+To point the app at a different server, set `EXPO_PUBLIC_API_URL` (see `mobile/.env.example`).
+
+The same checks CI runs (from `mobile/`):
+
+```
+npm run lint
+npm run typecheck
+npm test
+```
 
 ## Developing the backend
 
