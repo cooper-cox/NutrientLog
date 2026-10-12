@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   type LayoutChangeEvent,
@@ -23,16 +23,15 @@ import {
   emptyForm,
   type FieldErrors,
   type FieldName,
-  answersWithText,
+  BIRTH_INCOMPLETE,
+  type BirthBox,
+  birthBoxProblem,
   cleanNumber,
   groupReady,
   RATE_CHOICES,
   type SurveyForm,
 } from './survey';
 import { useLimits } from './useLimits';
-
-/** How long without typing before an answer is checked (milliseconds). */
-const IDLE_MS = 800;
 
 /** Long enough for the biggest accepted number with a decimal, e.g. 660.5 */
 const MAX_NUMBER_LENGTH = 5;
@@ -77,6 +76,9 @@ export function OnboardingScreen({ initialForm, onSaved, onCancel }: Props) {
   // Which answers have been left (and so may show a problem). After pressing the button, all do.
   const [shown, setShown] = useState<ReadonlySet<FieldName>>(new Set());
   const [showAll, setShowAll] = useState(false);
+  // The box being typed in right now, and which birth date boxes have been left.
+  const [editing, setEditing] = useState<string | null>(null);
+  const [birthLeft, setBirthLeft] = useState<ReadonlySet<BirthBox>>(new Set());
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
@@ -91,8 +93,29 @@ export function OnboardingScreen({ initialForm, onSaved, onCancel }: Props) {
     [form, timeZone, today, limits],
   );
   const problems: FieldErrors = checked.ok ? {} : checked.errors;
-  const errorFor = (field: FieldName): string | undefined =>
-    serverErrors[field] ?? (showAll || shown.has(field) ? problems[field] : undefined);
+  // A problem is only pointed out once the person has left the box, never while typing in it.
+  const errorFor = (field: FieldName): string | undefined => {
+    if (serverErrors[field]) return serverErrors[field];
+    if (field === 'birth_date') return birthError();
+    if (editing === field) return undefined;
+    return showAll || shown.has(field) ? problems[field] : undefined;
+  };
+
+  /** Birth date: a bad box is pointed out as soon as it is left; the whole date once all are in. */
+  function birthError(): string | undefined {
+    const boxes: BirthBox[] = ['month', 'day', 'year'];
+    for (const box of boxes) {
+      if ((showAll || birthLeft.has(box)) && editing !== `birth_${box}`) {
+        const found = birthBoxProblem(form, box);
+        if (found) return found;
+      }
+    }
+    if (editing?.startsWith('birth_')) return undefined;
+    const whole = problems.birth_date;
+    if (showAll) return whole;
+    // "Incomplete" is no use until the person presses the button: they may still be typing.
+    return shown.has('birth_date') && whole !== BIRTH_INCOMPLETE ? whole : undefined;
+  }
 
   const update = (change: (current: SurveyForm) => SurveyForm) => {
     setForm(change);
@@ -102,20 +125,13 @@ export function OnboardingScreen({ initialForm, onSaved, onCancel }: Props) {
   const set = <K extends keyof SurveyForm>(key: K, value: SurveyForm[K]) =>
     update((current) => ({ ...current, [key]: value }));
 
-  // Pausing for a moment counts as "done typing": answers that are filled in can show a problem
-  // even if the person hasn't left the box (for example the keyboard has no Done key).
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setShown((current) => {
-        const missing = answersWithText(form).filter((field) => !current.has(field));
-        return missing.length === 0 ? current : new Set([...current, ...missing]);
-      });
-    }, IDLE_MS);
-    return () => clearTimeout(timer);
-  }, [form]);
+  /** Called when the person taps into a box: its problem is hidden until they leave it. */
+  const entered = (box: string) => () => setEditing(box);
 
   /** Called when the person leaves one of the boxes of an answer. */
-  const left = (field: FieldName) => {
+  const left = (field: FieldName, box?: BirthBox) => () => {
+    setEditing(null);
+    if (box) setBirthLeft((current) => new Set(current).add(box));
     if (groupReady(form, field)) setShown((current) => new Set(current).add(field));
   };
   const trackPosition = (field: FieldName) => (event: LayoutChangeEvent) => {
@@ -140,6 +156,7 @@ export function OnboardingScreen({ initialForm, onSaved, onCancel }: Props) {
     if (saving) return;
     setProblem(null);
 
+    setEditing(null);
     if (!checked.ok) {
       setShowAll(true);
       const fields = Object.keys(checked.errors) as FieldName[];
@@ -214,7 +231,8 @@ export function OnboardingScreen({ initialForm, onSaved, onCancel }: Props) {
             autoComplete="given-name"
             maxLength={100}
             hasError={!!errorFor('name')}
-            onBlur={() => left('name')}
+            onFocus={entered('name')}
+            onBlur={left('name')}
           />
         </FormGroup>
 
@@ -258,7 +276,8 @@ export function OnboardingScreen({ initialForm, onSaved, onCancel }: Props) {
               value={form.birthMonth}
               onChangeText={(text) => set('birthMonth', text)}
               hasError={!!errorFor('birth_date')}
-              onBlur={() => left('birth_date')}
+              onFocus={entered('birth_month')}
+              onBlur={left('birth_date', 'month')}
               style={styles.small}
             />
             <Input
@@ -269,7 +288,8 @@ export function OnboardingScreen({ initialForm, onSaved, onCancel }: Props) {
               value={form.birthDay}
               onChangeText={(text) => set('birthDay', text)}
               hasError={!!errorFor('birth_date')}
-              onBlur={() => left('birth_date')}
+              onFocus={entered('birth_day')}
+              onBlur={left('birth_date', 'day')}
               style={styles.small}
             />
             <Input
@@ -280,7 +300,8 @@ export function OnboardingScreen({ initialForm, onSaved, onCancel }: Props) {
               value={form.birthYear}
               onChangeText={(text) => set('birthYear', text)}
               hasError={!!errorFor('birth_date')}
-              onBlur={() => left('birth_date')}
+              onFocus={entered('birth_year')}
+              onBlur={left('birth_date', 'year')}
               style={styles.medium}
             />
           </View>
@@ -300,7 +321,8 @@ export function OnboardingScreen({ initialForm, onSaved, onCancel }: Props) {
               onChangeText={(text) => set('heightCm', cleanNumber(text))}
               maxLength={MAX_NUMBER_LENGTH}
               hasError={!!errorFor('height_cm')}
-              onBlur={() => left('height_cm')}
+              onFocus={entered('height_cm')}
+              onBlur={left('height_cm')}
             />
           ) : (
             <View style={styles.row}>
@@ -312,7 +334,8 @@ export function OnboardingScreen({ initialForm, onSaved, onCancel }: Props) {
                 value={form.heightFeet}
                 onChangeText={(text) => set('heightFeet', text)}
                 hasError={!!errorFor('height_cm')}
-                onBlur={() => left('height_cm')}
+                onFocus={entered('height_cm')}
+                onBlur={left('height_cm')}
                 style={styles.small}
               />
               <Input
@@ -323,7 +346,8 @@ export function OnboardingScreen({ initialForm, onSaved, onCancel }: Props) {
                 value={form.heightInches}
                 onChangeText={(text) => set('heightInches', cleanNumber(text))}
                 hasError={!!errorFor('height_cm')}
-                onBlur={() => left('height_cm')}
+                onFocus={entered('height_cm')}
+                onBlur={left('height_cm')}
                 style={styles.small}
               />
             </View>
@@ -343,7 +367,8 @@ export function OnboardingScreen({ initialForm, onSaved, onCancel }: Props) {
             onChangeText={(text) => set('weight', cleanNumber(text))}
             maxLength={MAX_NUMBER_LENGTH}
             hasError={!!errorFor('weight_kg')}
-            onBlur={() => left('weight_kg')}
+            onFocus={entered('weight_kg')}
+            onBlur={left('weight_kg')}
           />
         </FormGroup>
 
@@ -404,7 +429,8 @@ export function OnboardingScreen({ initialForm, onSaved, onCancel }: Props) {
             onChangeText={(text) => set('goalWeight', cleanNumber(text))}
             maxLength={MAX_NUMBER_LENGTH}
             hasError={!!errorFor('goal_weight_kg')}
-            onBlur={() => left('goal_weight_kg')}
+            onFocus={entered('goal_weight_kg')}
+            onBlur={left('goal_weight_kg')}
           />
         </FormGroup>
 
