@@ -1,5 +1,13 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, type TextInputProps, View } from 'react-native';
+import {
+  type LayoutChangeEvent,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  type TextInputProps,
+  View,
+} from 'react-native';
 
 export const DISCLAIMER =
   'NutrientLog gives general estimates for healthy adults. It is not medical advice. If you are ' +
@@ -11,15 +19,18 @@ export function FormGroup({
   label,
   help,
   error,
+  onLayout,
   children,
 }: {
   label: string;
   help?: string;
   error?: string;
+  /** Lets a screen find out where this group is, e.g. to scroll to the first problem. */
+  onLayout?: (event: LayoutChangeEvent) => void;
   children: ReactNode;
 }) {
   return (
-    <View style={styles.group}>
+    <View style={styles.group} onLayout={onLayout}>
       <Text style={styles.label}>{label}</Text>
       {help ? <Text style={styles.help}>{help}</Text> : null}
       {children}

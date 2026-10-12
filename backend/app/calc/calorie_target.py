@@ -13,6 +13,8 @@ later compares this target against the actual weight trend. This is not medical 
 from dataclasses import dataclass
 from enum import StrEnum
 
+from app.calc.units import Units, format_height_limit, format_weight_limit
+
 
 class Sex(StrEnum):
     MALE = "male"
@@ -61,13 +63,29 @@ MIN_HEIGHT_CM, MAX_HEIGHT_CM = 100.0, 250.0
 MIN_WEIGHT_KG, MAX_WEIGHT_KG = 30.0, 300.0
 
 
-class InvalidInputError(ValueError):
-    """An answer is outside the accepted range. `field` names the survey answer at fault."""
+@dataclass(frozen=True)
+class Problem:
+    """One survey answer that can't be accepted: which answer, and what to tell the person."""
 
-    def __init__(self, field: str, message: str) -> None:
-        super().__init__(message)
-        self.field = field
-        self.message = message
+    field: str
+    message: str
+
+
+class InvalidInputError(ValueError):
+    """One or more answers can't be accepted. Every problem is reported, not just the first."""
+
+    def __init__(self, problems: list[Problem]) -> None:
+        super().__init__(" ".join(problem.message for problem in problems))
+        self.problems = problems
+
+    @property
+    def field(self) -> str:
+        """The field of the first problem (handy when there is only one)."""
+        return self.problems[0].field
+
+    @property
+    def message(self) -> str:
+        return self.problems[0].message
 
 
 @dataclass(frozen=True)
@@ -100,24 +118,43 @@ def daily_adjustment_kcal(goal: GoalType, rate_kg_per_week: float) -> float:
     return 0.0
 
 
-def _validate(age_years: int, height_cm: float, weight_kg: float, rate_kg_per_week: float) -> None:
-    if not MIN_AGE_YEARS <= age_years <= MAX_AGE_YEARS:
-        raise InvalidInputError(
-            "birth_date", f"age must be between {MIN_AGE_YEARS} and {MAX_AGE_YEARS}"
+def range_problems(
+    age_years: int,
+    height_cm: float,
+    weight_kg: float,
+    rate_kg_per_week: float,
+    units: Units = "metric",
+) -> list[Problem]:
+    """Every answer that is outside the accepted range, worded in the person's units."""
+    problems: list[Problem] = []
+    if age_years < MIN_AGE_YEARS:
+        problems.append(
+            Problem(
+                "birth_date", f"NutrientLog is for adults: you must be {MIN_AGE_YEARS} or older."
+            )
+        )
+    elif age_years > MAX_AGE_YEARS:
+        problems.append(
+            Problem(
+                "birth_date",
+                f"Please check your birth date: we support ages up to {MAX_AGE_YEARS}.",
+            )
         )
     if not MIN_HEIGHT_CM <= height_cm <= MAX_HEIGHT_CM:
-        raise InvalidInputError(
-            "height_cm", f"height must be between {MIN_HEIGHT_CM} and {MAX_HEIGHT_CM} cm"
-        )
+        low = format_height_limit(MIN_HEIGHT_CM, units, round_up=True)
+        high = format_height_limit(MAX_HEIGHT_CM, units, round_up=False)
+        problems.append(Problem("height_cm", f"Height must be between {low} and {high}."))
     if not MIN_WEIGHT_KG <= weight_kg <= MAX_WEIGHT_KG:
-        raise InvalidInputError(
-            "weight_kg", f"weight must be between {MIN_WEIGHT_KG} and {MAX_WEIGHT_KG} kg"
-        )
+        problems.append(Problem("weight_kg", f"Weight must be between {weight_range_text(units)}."))
     if rate_kg_per_week < 0:
-        raise InvalidInputError(
-            "rate_kg_per_week",
-            "rate_kg_per_week cannot be negative; use the goal type for direction",
-        )
+        problems.append(Problem("rate_kg_per_week", "The weekly pace cannot be negative."))
+    return problems
+
+
+def weight_range_text(units: Units) -> str:
+    low = format_weight_limit(MIN_WEIGHT_KG, units, round_up=True)
+    high = format_weight_limit(MAX_WEIGHT_KG, units, round_up=False)
+    return f"{low} and {high}"
 
 
 def calculate_calorie_target(
@@ -130,7 +167,9 @@ def calculate_calorie_target(
     goal: GoalType,
     rate_kg_per_week: float = 0.0,
 ) -> CalorieTarget:
-    _validate(age_years, height_cm, weight_kg, rate_kg_per_week)
+    problems = range_problems(age_years, height_cm, weight_kg, rate_kg_per_week)
+    if problems:
+        raise InvalidInputError(problems)
 
     bmr = bmr_mifflin_st_jeor(weight_kg, height_cm, age_years, sex)
     maintenance = tdee(bmr, activity)

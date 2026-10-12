@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import App from './App';
 import { ApiError } from './src/api/client';
+import { getLimits } from './src/api/limits';
 import { getCurrentGoal, getProfile, type Goal, type Profile } from './src/api/users';
 import { getStoredToken } from './src/storage/token';
 
@@ -11,10 +12,12 @@ jest.mock(
 );
 jest.mock('./src/api/users');
 jest.mock('./src/api/health');
+jest.mock('./src/api/limits');
 jest.mock('./src/storage/token');
 jest.mock('./src/config', () => ({ getApiBaseUrl: () => 'http://192.168.1.5:8000' }));
 
 const mockGetToken = jest.mocked(getStoredToken);
+const mockGetLimits = jest.mocked(getLimits);
 const mockGetProfile = jest.mocked(getProfile);
 const mockGetGoal = jest.mocked(getCurrentGoal);
 
@@ -48,7 +51,9 @@ const GOAL = {
 
 beforeEach(() => {
   // Reset only our own mocks: resetting everything would also wipe the safe-area mock above.
-  for (const mock of [mockGetToken, mockGetProfile, mockGetGoal]) mock.mockReset();
+  for (const mock of [mockGetToken, mockGetProfile, mockGetGoal, mockGetLimits]) mock.mockReset();
+  // The survey asks the server for its limits; these tests don't need them.
+  mockGetLimits.mockRejectedValue(new ApiError('Could not reach the server.'));
 });
 
 describe('App', () => {

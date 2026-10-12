@@ -25,13 +25,9 @@ def _clean(message: str) -> str:
 
 async def _invalid_input(_request: Request, error: Exception) -> JSONResponse:
     assert isinstance(error, InvalidInputError)
-    return JSONResponse(
-        status_code=422,
-        content={
-            "detail": error.message,
-            "errors": [{"field": error.field, "message": error.message}],
-        },
-    )
+    problems = [{"field": item.field, "message": item.message} for item in error.problems]
+    detail = error.message if len(problems) == 1 else "Some answers need fixing."
+    return JSONResponse(status_code=422, content={"detail": detail, "errors": problems})
 
 
 async def _invalid_request(_request: Request, error: Exception) -> JSONResponse:

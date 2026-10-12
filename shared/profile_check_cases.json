@@ -1,0 +1,274 @@
+{
+  "_readme": "Shared by backend/tests/unit/calc/test_profile_check_shared.py and mobile/src/features/onboarding/checks.test.ts so the server and the app give the same answers and the same wording. If you change the checks, change this file and both tests will tell you where the other side differs.",
+  "limits": {
+    "min_age_years": 18,
+    "max_age_years": 100,
+    "min_height_cm": 100.0,
+    "max_height_cm": 250.0,
+    "min_weight_kg": 30.0,
+    "max_weight_kg": 300.0,
+    "min_plausible_bmi": 14.0,
+    "max_plausible_bmi": 80.0,
+    "min_goal_bmi_when_losing": 18.5,
+    "max_goal_bmi": 45.0,
+    "max_gain_kg_per_week": 0.5,
+    "max_lose_kg_per_week": 1.0
+  },
+  "cases": [
+    {
+      "name": "sensible answers have no problems",
+      "age_years": 30,
+      "height_cm": 182.9,
+      "weight_kg": 81.6,
+      "goal_weight_kg": 90.0,
+      "goal": "gain",
+      "units": "imperial",
+      "expected": {}
+    },
+    {
+      "name": "no goal weight is fine",
+      "age_years": 30,
+      "height_cm": 182.9,
+      "weight_kg": 81.6,
+      "goal_weight_kg": null,
+      "goal": "gain",
+      "units": "imperial",
+      "expected": {}
+    },
+    {
+      "name": "goal weight of 1100 lb",
+      "age_years": 30,
+      "height_cm": 182.9,
+      "weight_kg": 81.6,
+      "goal_weight_kg": 499.0,
+      "goal": "gain",
+      "units": "imperial",
+      "expected": {
+        "goal_weight_kg": "Goal weight must be between 67 lb and 661 lb."
+      }
+    },
+    {
+      "name": "80 lb at 6 ft does not add up",
+      "age_years": 30,
+      "height_cm": 182.9,
+      "weight_kg": 36.3,
+      "goal_weight_kg": null,
+      "goal": "gain",
+      "units": "imperial",
+      "expected": {
+        "weight_kg": "That height and weight don't look right together. Please check them. If they are correct, please talk to a doctor before using a nutrition app."
+      }
+    },
+    {
+      "name": "goal far too low when losing",
+      "age_years": 30,
+      "height_cm": 182.9,
+      "weight_kg": 81.6,
+      "goal_weight_kg": 45.4,
+      "goal": "lose",
+      "units": "imperial",
+      "expected": {
+        "goal_weight_kg": "For your height, the lowest goal weight we can set is about 137 lb."
+      }
+    },
+    {
+      "name": "lowest goal when losing, as shown, is accepted",
+      "age_years": 30,
+      "height_cm": 182.9,
+      "weight_kg": 81.6,
+      "goal_weight_kg": 61.9,
+      "goal": "lose",
+      "units": "imperial",
+      "expected": {}
+    },
+    {
+      "name": "just under the lowest goal when losing",
+      "age_years": 30,
+      "height_cm": 182.9,
+      "weight_kg": 81.6,
+      "goal_weight_kg": 61.8,
+      "goal": "lose",
+      "units": "imperial",
+      "expected": {
+        "goal_weight_kg": "For your height, the lowest goal weight we can set is about 137 lb."
+      }
+    },
+    {
+      "name": "goal too high when gaining",
+      "age_years": 30,
+      "height_cm": 182.9,
+      "weight_kg": 81.6,
+      "goal_weight_kg": 200.0,
+      "goal": "gain",
+      "units": "imperial",
+      "expected": {
+        "goal_weight_kg": "For your height, the highest goal weight we can set is about 331 lb."
+      }
+    },
+    {
+      "name": "heavy person can lose to a goal still above the gaining limit",
+      "age_years": 30,
+      "height_cm": 182.9,
+      "weight_kg": 170.0,
+      "goal_weight_kg": 155.0,
+      "goal": "lose",
+      "units": "imperial",
+      "expected": {}
+    },
+    {
+      "name": "heavy person can maintain",
+      "age_years": 30,
+      "height_cm": 182.9,
+      "weight_kg": 170.0,
+      "goal_weight_kg": 155.0,
+      "goal": "maintain",
+      "units": "imperial",
+      "expected": {}
+    },
+    {
+      "name": "gain with a goal below current",
+      "age_years": 30,
+      "height_cm": 182.9,
+      "weight_kg": 81.6,
+      "goal_weight_kg": 75.0,
+      "goal": "gain",
+      "units": "imperial",
+      "expected": {
+        "goal_weight_kg": "To gain weight, the goal weight must be above your current weight."
+      }
+    },
+    {
+      "name": "gain with a goal equal to current",
+      "age_years": 30,
+      "height_cm": 182.9,
+      "weight_kg": 81.6,
+      "goal_weight_kg": 81.6,
+      "goal": "gain",
+      "units": "imperial",
+      "expected": {
+        "goal_weight_kg": "To gain weight, the goal weight must be above your current weight."
+      }
+    },
+    {
+      "name": "lose with a goal above current",
+      "age_years": 30,
+      "height_cm": 182.9,
+      "weight_kg": 81.6,
+      "goal_weight_kg": 90.0,
+      "goal": "lose",
+      "units": "imperial",
+      "expected": {
+        "goal_weight_kg": "To lose weight, the goal weight must be below your current weight."
+      }
+    },
+    {
+      "name": "maintain accepts any goal in range",
+      "age_years": 30,
+      "height_cm": 182.9,
+      "weight_kg": 81.6,
+      "goal_weight_kg": 60.0,
+      "goal": "maintain",
+      "units": "imperial",
+      "expected": {}
+    },
+    {
+      "name": "underweight person can aim to gain",
+      "age_years": 30,
+      "height_cm": 182.9,
+      "weight_kg": 57.0,
+      "goal_weight_kg": 62.0,
+      "goal": "gain",
+      "units": "imperial",
+      "expected": {}
+    },
+    {
+      "name": "height and weight out of range, imperial",
+      "age_years": 30,
+      "height_cm": 300.0,
+      "weight_kg": 500.0,
+      "goal_weight_kg": null,
+      "goal": "gain",
+      "units": "imperial",
+      "expected": {
+        "height_cm": "Height must be between 3 ft 4 in and 8 ft 2 in.",
+        "weight_kg": "Weight must be between 67 lb and 661 lb."
+      }
+    },
+    {
+      "name": "height and weight out of range, metric",
+      "age_years": 30,
+      "height_cm": 50.0,
+      "weight_kg": 10.0,
+      "goal_weight_kg": null,
+      "goal": "gain",
+      "units": "metric",
+      "expected": {
+        "height_cm": "Height must be between 100 cm and 250 cm.",
+        "weight_kg": "Weight must be between 30 kg and 300 kg."
+      }
+    },
+    {
+      "name": "under 18",
+      "age_years": 17,
+      "height_cm": 182.9,
+      "weight_kg": 81.6,
+      "goal_weight_kg": null,
+      "goal": "gain",
+      "units": "imperial",
+      "expected": {
+        "birth_date": "NutrientLog is for adults: you must be 18 or older."
+      }
+    },
+    {
+      "name": "over 100",
+      "age_years": 101,
+      "height_cm": 182.9,
+      "weight_kg": 81.6,
+      "goal_weight_kg": null,
+      "goal": "gain",
+      "units": "imperial",
+      "expected": {
+        "birth_date": "Please check your birth date: we support ages up to 100."
+      }
+    },
+    {
+      "name": "several problems at once",
+      "age_years": 17,
+      "height_cm": 300.0,
+      "weight_kg": 500.0,
+      "goal_weight_kg": 499.0,
+      "goal": "gain",
+      "units": "imperial",
+      "expected": {
+        "birth_date": "NutrientLog is for adults: you must be 18 or older.",
+        "height_cm": "Height must be between 3 ft 4 in and 8 ft 2 in.",
+        "weight_kg": "Weight must be between 67 lb and 661 lb.",
+        "goal_weight_kg": "Goal weight must be between 67 lb and 661 lb."
+      }
+    },
+    {
+      "name": "goal weight out of range, metric",
+      "age_years": 30,
+      "height_cm": 182.9,
+      "weight_kg": 81.6,
+      "goal_weight_kg": 20.0,
+      "goal": "gain",
+      "units": "metric",
+      "expected": {
+        "goal_weight_kg": "Goal weight must be between 30 kg and 300 kg."
+      }
+    },
+    {
+      "name": "goal weight is not judged against a wrong height",
+      "age_years": 30,
+      "height_cm": 300.0,
+      "weight_kg": 81.6,
+      "goal_weight_kg": 200.0,
+      "goal": "gain",
+      "units": "imperial",
+      "expected": {
+        "height_cm": "Height must be between 3 ft 4 in and 8 ft 2 in."
+      }
+    }
+  ]
+}
