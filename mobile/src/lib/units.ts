@@ -43,31 +43,38 @@ export function formatRate(kgPerWeek: number, units: 'metric' | 'imperial'): str
 
 const EPSILON = 1e-9;
 
-function roundTowards(value: number, roundUp: boolean): number {
-  return roundUp ? Math.ceil(value - EPSILON) : Math.floor(value + EPSILON);
+function roundToStep(value: number, step: number, roundUp: boolean): number {
+  const steps = value / step;
+  return (roundUp ? Math.ceil(steps - EPSILON) : Math.floor(steps + EPSILON)) * step;
 }
 
 /**
- * A weight limit as text in the person's units, rounded so the limit shown is never too generous:
- * lower limits round up and upper limits round down, so typing exactly the number shown is
- * always accepted. Matches the wording the server uses.
+ * A weight limit as text in the person's units, rounded to a tidy multiple of `step` that is
+ * never too generous: lower limits round up and upper limits round down, so typing exactly the
+ * number shown is always accepted. Matches the wording the server uses.
  */
 export function formatWeightLimit(
   kg: number,
   units: 'metric' | 'imperial',
   roundUp: boolean,
+  step = 1,
 ): string {
-  const whole = roundTowards(units === 'metric' ? kg : kgToLb(kg), roundUp);
+  const whole = roundToStep(units === 'metric' ? kg : kgToLb(kg), step, roundUp);
   return units === 'metric' ? `${whole} kg` : `${whole} lb`;
 }
 
-/** A height limit as text: centimetres, or feet and whole inches. Rounded as above. */
+/**
+ * A height limit as text: centimetres (to the nearest 5), or feet and inches (to the nearest half
+ * foot). Rounded as above.
+ */
 export function formatHeightLimit(
   cm: number,
   units: 'metric' | 'imperial',
   roundUp: boolean,
 ): string {
-  if (units === 'metric') return `${roundTowards(cm, roundUp)} cm`;
-  const totalInches = roundTowards(cm / CM_PER_INCH, roundUp);
-  return `${Math.floor(totalInches / 12)} ft ${totalInches % 12} in`;
+  if (units === 'metric') return `${roundToStep(cm, 5, roundUp)} cm`;
+  const totalInches = roundToStep(cm / CM_PER_INCH, 6, roundUp);
+  const feet = Math.floor(totalInches / 12);
+  const inches = totalInches % 12;
+  return inches === 0 ? `${feet} ft` : `${feet} ft ${inches} in`;
 }
