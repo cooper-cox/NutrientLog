@@ -8,7 +8,7 @@ their group.
 could ride along with another milestone. *Before others* means it must be fixed before anyone but
 the author uses the app.
 
-Last reviewed after: M5.1 (survey checks).
+Last reviewed after: M5.2 (survey check fixes).
 
 ---
 
@@ -50,6 +50,9 @@ Last reviewed after: M5.1 (survey checks).
     be right (BMI under 14 or over 80) are rejected. All problems are shown at once, worded in the
     person's units. The numbers live on the server and the app fetches them (`/api/v1/limits`).
   - Fix: review the limits against real use and widen them if people are being wrongly turned away.
+  - Also (M5.2): the limits are shown as tidy numbers (70 to 660 lb, 3 ft 6 in to 8 ft) that sit
+    just inside the real limits, so typing any number shown is always accepted. Number boxes
+    now have a length limit and ignore letters.
   - Revisit: whenever someone hits one. See also L29.
 
 ## B. Accuracy of the numbers
@@ -216,6 +219,9 @@ Last reviewed after: M5.1 (survey checks).
     people inside the safe limits.
   - Fix: a native date picker; a free-form pace, typed in lb or kg per week (still capped by the
     server, with a clear message when it is capped). Requested after the M5 phone test.
+    A "reach my goal in N weeks" input was also suggested. It is only safe if the pace it implies
+    is checked against the same caps (and then it is the same thing as choosing a pace), so a
+    pace input with a "this would take about N weeks" readout is the better design.
   - Revisit: v0.7 (function polish) or v0.8 (look and feel).
 
 - [ ] **L28. The survey is a single long scrolling form,** and nothing is saved until you press
@@ -270,3 +276,10 @@ their job. Today's survey is a deliberately simple first version. These items, t
   simulate scrolling.
   - Fix: add a UI test with a real scroll view, or an end-to-end test on a simulator.
   - Revisit: when end-to-end tests are added.
+
+- [ ] **L34. Number boxes are plain text boxes with a number keyboard.** A spinner or slider
+  can be quicker for rough values, but is slow and imprecise for exact ones such as 182.5 lb.
+  - Fix: keep text boxes for weight and height. Consider a spinner or stepper for small bounded
+    choices (weekly pace, birth year) in the v0.8 look-and-feel pass, and always keep typing as
+    an option.
+  - Revisit: v0.8.

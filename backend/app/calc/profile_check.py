@@ -93,7 +93,7 @@ def _goal_weight_problem(
     if goal is GoalType.LOSE:
         lowest = weight_for_bmi(MIN_GOAL_BMI_WHEN_LOSING, height_cm)
         if goal_weight_kg < lowest:
-            about = format_weight_limit(lowest, units, round_up=True)
+            about = format_weight_limit(lowest, units, round_up=True, step=5)
             return Problem(
                 field, f"For your height, the lowest goal weight we can set is about {about}."
             )
@@ -102,7 +102,7 @@ def _goal_weight_problem(
         # wants to lose weight (or stay put) must still be able to set a goal below where they are.
         highest = weight_for_bmi(MAX_GOAL_BMI, height_cm)
         if goal_weight_kg > highest:
-            about = format_weight_limit(highest, units, round_up=False)
+            about = format_weight_limit(highest, units, round_up=False, step=5)
             return Problem(
                 field, f"For your height, the highest goal weight we can set is about {about}."
             )

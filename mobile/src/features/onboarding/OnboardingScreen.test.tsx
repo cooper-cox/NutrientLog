@@ -224,7 +224,7 @@ describe('checking answers as they are typed', () => {
 
     leave('Current weight in pounds');
 
-    expect(screen.getByText('Weight must be between 67 lb and 661 lb.')).toBeTruthy();
+    expect(screen.getByText('Weight must be between 70 lb and 660 lb.')).toBeTruthy();
     expect(mockSaveSurvey).not.toHaveBeenCalled();
   });
 
@@ -235,7 +235,7 @@ describe('checking answers as they are typed', () => {
     choose('Pounds and feet');
     type('Height, feet', '9');
     leave('Height, feet');
-    expect(screen.getByText('Height must be between 3 ft 4 in and 8 ft 2 in.')).toBeTruthy();
+    expect(screen.getByText('Height must be between 3 ft 6 in and 8 ft.')).toBeTruthy();
 
     choose('Kilograms and centimetres');
     type('Height in centimetres', '300');
@@ -275,9 +275,9 @@ describe('checking answers as they are typed', () => {
 
     expect(screen.getByText('4 answers need fixing. They are marked in red.')).toBeTruthy();
     expect(screen.getByText('NutrientLog is for adults: you must be 18 or older.')).toBeTruthy();
-    expect(screen.getByText('Height must be between 3 ft 4 in and 8 ft 2 in.')).toBeTruthy();
-    expect(screen.getAllByText('Weight must be between 67 lb and 661 lb.')).toHaveLength(1);
-    expect(screen.getByText('Goal weight must be between 67 lb and 661 lb.')).toBeTruthy();
+    expect(screen.getByText('Height must be between 3 ft 6 in and 8 ft.')).toBeTruthy();
+    expect(screen.getAllByText('Weight must be between 70 lb and 660 lb.')).toHaveLength(1);
+    expect(screen.getByText('Goal weight must be between 70 lb and 660 lb.')).toBeTruthy();
     expect(mockSaveSurvey).not.toHaveBeenCalled();
   });
 
@@ -348,5 +348,93 @@ describe('checking answers as they are typed', () => {
     type('Your name', 'Coop');
 
     expect(screen.queryByText('Something about the name.')).toBeNull();
+  });
+
+  it('also shows a problem after a pause in typing, without leaving the box', async () => {
+    jest.useFakeTimers();
+    try {
+      renderScreen();
+      await limitsArrive();
+      choose('Pounds and feet');
+      type('Current weight in pounds', '9999');
+      expect(screen.queryByText(/Weight must be between/)).toBeNull();
+
+      act(() => {
+        jest.advanceTimersByTime(900);
+      });
+
+      expect(screen.getByText('Weight must be between 70 lb and 660 lb.')).toBeTruthy();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('does not nag about a half-typed birth date after a pause either', async () => {
+    jest.useFakeTimers();
+    try {
+      renderScreen();
+      await limitsArrive();
+      type('Birth month', '1');
+      act(() => {
+        jest.advanceTimersByTime(2000);
+      });
+      expect(screen.queryByText(/4-digit year|does not exist|must be 18/)).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('warns when the limits could not be loaded, after a few tries', async () => {
+    jest.useFakeTimers();
+    try {
+      mockGetLimits.mockRejectedValue(new ApiError('Could not reach the server.'));
+      renderScreen();
+      await limitsArrive();
+      expect(screen.queryByText(/Couldn’t load the answer limits/)).toBeNull();
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(2000);
+      });
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(4000);
+      });
+
+      expect(mockGetLimits).toHaveBeenCalledTimes(3);
+      expect(screen.getByText(/Couldn’t load the answer limits/)).toBeTruthy();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('keeps trying and uses the limits if a retry succeeds', async () => {
+    jest.useFakeTimers();
+    try {
+      mockGetLimits.mockRejectedValueOnce(new ApiError('Could not reach the server.'));
+      renderScreen();
+      await limitsArrive();
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(2000);
+      });
+      choose('Kilograms and centimetres');
+      type('Current weight in kilograms', '5');
+      leave('Current weight in kilograms');
+
+      expect(screen.getByText('Weight must be between 30 kg and 300 kg.')).toBeTruthy();
+      expect(screen.queryByText(/Couldn’t load the answer limits/)).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('limits the length of number boxes and drops anything that is not part of a number', async () => {
+    renderScreen();
+    choose('Kilograms and centimetres');
+
+    expect(screen.getByLabelText('Current weight in kilograms').props.maxLength).toBe(5);
+    expect(screen.getByLabelText('Goal weight in kilograms').props.maxLength).toBe(5);
+    expect(screen.getByLabelText('Height in centimetres').props.maxLength).toBe(5);
+
+    type('Current weight in kilograms', '8a0,5.5');
+    expect(screen.getByLabelText('Current weight in kilograms').props.value).toBe('80.55');
   });
 });

@@ -45,8 +45,8 @@ export function checkAnswers(answers: Answers, limits: Limits): CheckProblems {
   const problems: CheckProblems = {};
 
   const weightRange =
-    `${formatWeightLimit(limits.min_weight_kg, units, true)} and ` +
-    formatWeightLimit(limits.max_weight_kg, units, false);
+    `${formatWeightLimit(limits.min_weight_kg, units, true, 10)} and ` +
+    formatWeightLimit(limits.max_weight_kg, units, false, 10);
 
   if (ageYears !== undefined) {
     if (ageYears < limits.min_age_years) {
@@ -121,7 +121,7 @@ function goalWeightProblem(
   if (goalType === 'lose') {
     const lowest = weightForBmi(limits.min_goal_bmi_when_losing, heightCm);
     if (goalWeightKg < lowest) {
-      return `For your height, the lowest goal weight we can set is about ${formatWeightLimit(lowest, units, true)}.`;
+      return `For your height, the lowest goal weight we can set is about ${formatWeightLimit(lowest, units, true, 5)}.`;
     }
   }
   if (goalType === 'gain') {
@@ -129,7 +129,7 @@ function goalWeightProblem(
     // to lose weight (or stay put) must still be able to set a goal.
     const highest = weightForBmi(limits.max_goal_bmi, heightCm);
     if (goalWeightKg > highest) {
-      return `For your height, the highest goal weight we can set is about ${formatWeightLimit(highest, units, false)}.`;
+      return `For your height, the highest goal weight we can set is about ${formatWeightLimit(highest, units, false, 5)}.`;
     }
   }
   return null;

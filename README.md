@@ -5,7 +5,7 @@
 
 A nutrition-first calorie and nutrient tracker for iPhone. It tells you what your body needs and why, not just how many calories you ate.
 
-**Status:** v0.1 in progress. Done: backend (health, users, profile, goals), the Expo app, and CI for both. M5 (the onboarding survey and results screen) is merged and M5.1 (better survey checks) is in review. Next: M6, foods on the backend.
+**Status:** v0.1 in progress. Done: backend (health, users, profile, goals), the Expo app, and CI for both. M5 (the onboarding survey and results screen) is merged and M5.1 (better survey checks) is merged and M5.2 (survey check fixes) is in review. Next: M6, foods on the backend.
 
 ## Stack
 

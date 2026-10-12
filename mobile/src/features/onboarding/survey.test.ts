@@ -1,6 +1,8 @@
 import type { Profile } from '../../api/users';
 import {
+  answersWithText,
   buildProfileRequest,
+  cleanNumber,
   changeUnits,
   emptyForm,
   formFromProfile,
@@ -279,5 +281,44 @@ describe('formFromProfile', () => {
       height_cm: 165,
       weight_kg: 60,
     });
+  });
+});
+
+describe('cleanNumber', () => {
+  it.each([
+    ['80', '80'],
+    ['80,5', '80.5'],
+    ['8a0', '80'],
+    ['1.2.3', '1.23'],
+    ['  7 ', '7'],
+    ['abc', ''],
+    ['-5', '5'],
+  ])('turns %p into %p', (input, expected) => {
+    expect(cleanNumber(input)).toBe(expected);
+  });
+});
+
+describe('answersWithText', () => {
+  it('lists only the answers filled in enough to check', () => {
+    expect(answersWithText(emptyForm())).toEqual([]);
+    expect(
+      answersWithText({ ...emptyForm(), birthMonth: '1', birthDay: '2', weight: '150' }),
+    ).toEqual(['weight_kg']);
+    expect(
+      answersWithText({
+        ...emptyForm(),
+        birthMonth: '1',
+        birthDay: '2',
+        birthYear: '1990',
+        heightFeet: '6',
+        goalWeight: '180',
+      }),
+    ).toEqual(['birth_date', 'height_cm', 'goal_weight_kg']);
+  });
+
+  it('uses the centimetres box for height when the units are metric', () => {
+    const metric = { ...emptyForm(), units: 'metric' as const, heightFeet: '6' };
+    expect(answersWithText(metric)).toEqual([]);
+    expect(answersWithText({ ...metric, heightCm: '180' })).toEqual(['height_cm']);
   });
 });

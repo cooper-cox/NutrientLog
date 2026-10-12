@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   type LayoutChangeEvent,
@@ -23,11 +23,19 @@ import {
   emptyForm,
   type FieldErrors,
   type FieldName,
+  answersWithText,
+  cleanNumber,
   groupReady,
   RATE_CHOICES,
   type SurveyForm,
 } from './survey';
 import { useLimits } from './useLimits';
+
+/** How long without typing before an answer is checked (milliseconds). */
+const IDLE_MS = 800;
+
+/** Long enough for the biggest accepted number with a decimal, e.g. 660.5 */
+const MAX_NUMBER_LENGTH = 5;
 
 const SEX_CHOICES: { value: Sex; label: string }[] = [
   { value: 'male', label: 'Male' },
@@ -60,7 +68,7 @@ type Props = {
 /** The first-run survey: a few questions, then a calorie and macro target. */
 export function OnboardingScreen({ initialForm, onSaved, onCancel }: Props) {
   const insets = useSafeAreaInsets();
-  const limits = useLimits();
+  const { limits, unavailable: limitsUnavailable } = useLimits();
   const timeZone = getTimeZone();
   const [today] = useState(() => new Date());
   const [form, setForm] = useState<SurveyForm>(initialForm ?? emptyForm());
@@ -93,6 +101,18 @@ export function OnboardingScreen({ initialForm, onSaved, onCancel }: Props) {
   };
   const set = <K extends keyof SurveyForm>(key: K, value: SurveyForm[K]) =>
     update((current) => ({ ...current, [key]: value }));
+
+  // Pausing for a moment counts as "done typing": answers that are filled in can show a problem
+  // even if the person hasn't left the box (for example the keyboard has no Done key).
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShown((current) => {
+        const missing = answersWithText(form).filter((field) => !current.has(field));
+        return missing.length === 0 ? current : new Set([...current, ...missing]);
+      });
+    }, IDLE_MS);
+    return () => clearTimeout(timer);
+  }, [form]);
 
   /** Called when the person leaves one of the boxes of an answer. */
   const left = (field: FieldName) => {
@@ -174,6 +194,12 @@ export function OnboardingScreen({ initialForm, onSaved, onCancel }: Props) {
           protein, fat and carbs to aim for each day.
         </Text>
         <Text style={styles.disclaimer}>{DISCLAIMER}</Text>
+        {limitsUnavailable ? (
+          <Text style={styles.notice}>
+            Couldn’t load the answer limits from the server, so some problems will only show when
+            you press the button.
+          </Text>
+        ) : null}
 
         <FormGroup
           label="Your name (optional)"
@@ -271,7 +297,8 @@ export function OnboardingScreen({ initialForm, onSaved, onCancel }: Props) {
               placeholder="cm"
               keyboardType="decimal-pad"
               value={form.heightCm}
-              onChangeText={(text) => set('heightCm', text)}
+              onChangeText={(text) => set('heightCm', cleanNumber(text))}
+              maxLength={MAX_NUMBER_LENGTH}
               hasError={!!errorFor('height_cm')}
               onBlur={() => left('height_cm')}
             />
@@ -294,7 +321,7 @@ export function OnboardingScreen({ initialForm, onSaved, onCancel }: Props) {
                 keyboardType="decimal-pad"
                 maxLength={4}
                 value={form.heightInches}
-                onChangeText={(text) => set('heightInches', text)}
+                onChangeText={(text) => set('heightInches', cleanNumber(text))}
                 hasError={!!errorFor('height_cm')}
                 onBlur={() => left('height_cm')}
                 style={styles.small}
@@ -313,7 +340,8 @@ export function OnboardingScreen({ initialForm, onSaved, onCancel }: Props) {
             placeholder={metric ? 'kg' : 'lb'}
             keyboardType="decimal-pad"
             value={form.weight}
-            onChangeText={(text) => set('weight', text)}
+            onChangeText={(text) => set('weight', cleanNumber(text))}
+            maxLength={MAX_NUMBER_LENGTH}
             hasError={!!errorFor('weight_kg')}
             onBlur={() => left('weight_kg')}
           />
@@ -373,7 +401,8 @@ export function OnboardingScreen({ initialForm, onSaved, onCancel }: Props) {
             placeholder={metric ? 'kg' : 'lb'}
             keyboardType="decimal-pad"
             value={form.goalWeight}
-            onChangeText={(text) => set('goalWeight', text)}
+            onChangeText={(text) => set('goalWeight', cleanNumber(text))}
+            maxLength={MAX_NUMBER_LENGTH}
             hasError={!!errorFor('goal_weight_kg')}
             onBlur={() => left('goal_weight_kg')}
           />
@@ -411,5 +440,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 10 },
   small: { flex: 1 },
   medium: { flex: 1.5 },
+  notice: { fontSize: 14, color: '#7a4b00', marginBottom: 16, lineHeight: 19 },
   problem: { fontSize: 16, color: '#b00020', marginBottom: 12 },
 });

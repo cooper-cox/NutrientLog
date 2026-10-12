@@ -152,8 +152,8 @@ def range_problems(
 
 
 def weight_range_text(units: Units) -> str:
-    low = format_weight_limit(MIN_WEIGHT_KG, units, round_up=True)
-    high = format_weight_limit(MAX_WEIGHT_KG, units, round_up=False)
+    low = format_weight_limit(MIN_WEIGHT_KG, units, round_up=True, step=10)
+    high = format_weight_limit(MAX_WEIGHT_KG, units, round_up=False, step=10)
     return f"{low} and {high}"
 
 

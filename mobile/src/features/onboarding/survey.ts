@@ -44,6 +44,31 @@ export type FieldErrors = Partial<Record<FieldName, string>>;
 
 export const DEFAULT_RATE_KG = 0.25;
 
+/** Keeps only what can be part of a number: digits and one decimal point (a comma counts). */
+export function cleanNumber(text: string): string {
+  const withPoint = text.replace(',', '.').replace(/[^0-9.]/g, '');
+  const firstPoint = withPoint.indexOf('.');
+  if (firstPoint === -1) return withPoint;
+  return withPoint.slice(0, firstPoint + 1) + withPoint.slice(firstPoint + 1).replace(/\./g, '');
+}
+
+/**
+ * The answers that have been typed in enough to check (so they can show a problem after the
+ * person pauses typing, even if they haven't left the box).
+ */
+export function answersWithText(form: SurveyForm): FieldName[] {
+  const found: FieldName[] = [];
+  if ([form.birthMonth, form.birthDay, form.birthYear].every((text) => text.trim() !== '')) {
+    found.push('birth_date');
+  }
+  if ((form.units === 'metric' ? form.heightCm : form.heightFeet).trim() !== '') {
+    found.push('height_cm');
+  }
+  if (form.weight.trim() !== '') found.push('weight_kg');
+  if (form.goalWeight.trim() !== '') found.push('goal_weight_kg');
+  return found;
+}
+
 /**
  * Is it time to check this group of boxes, now that the person has left one of them? A group
  * made of several boxes waits until it is either untouched or filled in, so nobody is told off

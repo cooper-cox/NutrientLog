@@ -1,4 +1,14 @@
-import { cmToFtIn, formatRate, formatWeight, ftInToCm, kgToLb, lbToKg, round1 } from './units';
+import {
+  cmToFtIn,
+  formatHeightLimit,
+  formatRate,
+  formatWeight,
+  formatWeightLimit,
+  ftInToCm,
+  kgToLb,
+  lbToKg,
+  round1,
+} from './units';
 
 describe('conversions', () => {
   it('converts pounds and kilograms both ways', () => {
@@ -39,5 +49,23 @@ describe('formatting', () => {
     expect(formatRate(0.25, 'imperial')).toBe('about 0.5 lb per week');
     expect(formatRate(0.5, 'imperial')).toBe('about 1 lb per week');
     expect(formatRate(0.75, 'imperial')).toBe('about 1.5 lb per week');
+  });
+});
+
+describe('tidy limits', () => {
+  it('rounds weight limits to tidy numbers that are never too generous', () => {
+    expect(formatWeightLimit(30, 'metric', true, 10)).toBe('30 kg');
+    expect(formatWeightLimit(30, 'imperial', true, 10)).toBe('70 lb'); // 66.1
+    expect(formatWeightLimit(300, 'imperial', false, 10)).toBe('660 lb'); // 661.4
+    expect(formatWeightLimit(61.9, 'imperial', true, 5)).toBe('140 lb'); // 136.5
+    expect(formatWeightLimit(150, 'imperial', false, 5)).toBe('330 lb'); // 330.7
+    expect(formatWeightLimit(61.9, 'metric', true, 5)).toBe('65 kg');
+  });
+
+  it('rounds height limits to centimetres in fives or half feet', () => {
+    expect(formatHeightLimit(100, 'imperial', true)).toBe('3 ft 6 in');
+    expect(formatHeightLimit(250, 'imperial', false)).toBe('8 ft');
+    expect(formatHeightLimit(103, 'metric', true)).toBe('105 cm');
+    expect(formatHeightLimit(247, 'metric', false)).toBe('245 cm');
   });
 });

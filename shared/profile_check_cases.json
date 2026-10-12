@@ -44,7 +44,7 @@
       "goal": "gain",
       "units": "imperial",
       "expected": {
-        "goal_weight_kg": "Goal weight must be between 67 lb and 661 lb."
+        "goal_weight_kg": "Goal weight must be between 70 lb and 660 lb."
       }
     },
     {
@@ -68,7 +68,7 @@
       "goal": "lose",
       "units": "imperial",
       "expected": {
-        "goal_weight_kg": "For your height, the lowest goal weight we can set is about 137 lb."
+        "goal_weight_kg": "For your height, the lowest goal weight we can set is about 140 lb."
       }
     },
     {
@@ -90,7 +90,7 @@
       "goal": "lose",
       "units": "imperial",
       "expected": {
-        "goal_weight_kg": "For your height, the lowest goal weight we can set is about 137 lb."
+        "goal_weight_kg": "For your height, the lowest goal weight we can set is about 140 lb."
       }
     },
     {
@@ -102,7 +102,7 @@
       "goal": "gain",
       "units": "imperial",
       "expected": {
-        "goal_weight_kg": "For your height, the highest goal weight we can set is about 331 lb."
+        "goal_weight_kg": "For your height, the highest goal weight we can set is about 330 lb."
       }
     },
     {
@@ -190,8 +190,8 @@
       "goal": "gain",
       "units": "imperial",
       "expected": {
-        "height_cm": "Height must be between 3 ft 4 in and 8 ft 2 in.",
-        "weight_kg": "Weight must be between 67 lb and 661 lb."
+        "height_cm": "Height must be between 3 ft 6 in and 8 ft.",
+        "weight_kg": "Weight must be between 70 lb and 660 lb."
       }
     },
     {
@@ -241,9 +241,9 @@
       "units": "imperial",
       "expected": {
         "birth_date": "NutrientLog is for adults: you must be 18 or older.",
-        "height_cm": "Height must be between 3 ft 4 in and 8 ft 2 in.",
-        "weight_kg": "Weight must be between 67 lb and 661 lb.",
-        "goal_weight_kg": "Goal weight must be between 67 lb and 661 lb."
+        "height_cm": "Height must be between 3 ft 6 in and 8 ft.",
+        "weight_kg": "Weight must be between 70 lb and 660 lb.",
+        "goal_weight_kg": "Goal weight must be between 70 lb and 660 lb."
       }
     },
     {
@@ -267,7 +267,7 @@
       "goal": "gain",
       "units": "imperial",
       "expected": {
-        "height_cm": "Height must be between 3 ft 4 in and 8 ft 2 in."
+        "height_cm": "Height must be between 3 ft 6 in and 8 ft."
       }
     }
   ]

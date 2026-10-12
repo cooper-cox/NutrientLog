@@ -53,23 +53,27 @@ def oz_to_g(oz: float) -> float:
     return oz * G_PER_OZ
 
 
-def format_weight_limit(kg: float, units: Units, *, round_up: bool) -> str:
-    """A weight as text in the person's units, rounded so the stated limit is never too generous.
+def _round_to_step(value: float, step: int, *, up: bool) -> int:
+    steps = value / step
+    return (math.ceil(steps - 1e-9) if up else math.floor(steps + 1e-9)) * step
 
-    Lower limits round up and upper limits round down, so a person who types exactly the number
-    shown is always accepted.
+
+def format_weight_limit(kg: float, units: Units, *, round_up: bool, step: int = 1) -> str:
+    """A weight as text in the person's units, rounded to a tidy number that is never too generous.
+
+    Lower limits round up and upper limits round down, to a multiple of `step`, so a person who
+    types exactly the number shown is always accepted (the real limit is a little wider).
     """
     value = kg if units == "metric" else kg_to_lb(kg)
-    whole = math.ceil(value - 1e-9) if round_up else math.floor(value + 1e-9)
+    whole = _round_to_step(value, step, up=round_up)
     return f"{whole} kg" if units == "metric" else f"{whole} lb"
 
 
 def format_height_limit(cm: float, units: Units, *, round_up: bool) -> str:
-    """A height as text in the person's units (cm, or feet and whole inches), rounded as above."""
+    """A height limit as text: whole centimetres (to the nearest 5), or feet and inches (to the
+    nearest half foot). Rounded as above, so the number shown is always accepted."""
     if units == "metric":
-        whole = math.ceil(cm - 1e-9) if round_up else math.floor(cm + 1e-9)
-        return f"{whole} cm"
-    inches = cm_to_inches(cm)
-    total = math.ceil(inches - 1e-9) if round_up else math.floor(inches + 1e-9)
+        return f"{_round_to_step(cm, 5, up=round_up)} cm"
+    total = _round_to_step(cm_to_inches(cm), INCHES_PER_FOOT // 2, up=round_up)
     feet, rest = divmod(total, INCHES_PER_FOOT)
-    return f"{feet} ft {rest} in"
+    return f"{feet} ft" if rest == 0 else f"{feet} ft {rest} in"

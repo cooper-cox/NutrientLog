@@ -368,11 +368,11 @@ def test_messages_use_the_units_chosen_in_the_survey(
     client: TestClient, auth: dict[str, str]
 ) -> None:
     imperial = put_profile(client, auth, weight_kg=500, unit_preference="imperial").json()
-    assert imperial["errors"][0]["message"] == "Weight must be between 67 lb and 661 lb."
+    assert imperial["errors"][0]["message"] == "Weight must be between 70 lb and 660 lb."
     metric = put_profile(client, auth, weight_kg=500, unit_preference="metric").json()
     assert metric["errors"][0]["message"] == "Weight must be between 30 kg and 300 kg."
     feet = put_profile(client, auth, height_cm=300, unit_preference="imperial").json()
-    assert feet["errors"][0]["message"] == "Height must be between 3 ft 4 in and 8 ft 2 in."
+    assert feet["errors"][0]["message"] == "Height must be between 3 ft 6 in and 8 ft."
 
 
 def test_an_unhealthy_goal_weight_is_rejected_and_nothing_is_saved(
