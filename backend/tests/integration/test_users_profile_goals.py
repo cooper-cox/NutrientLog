@@ -211,7 +211,7 @@ def test_under_18_is_rejected_with_a_clear_message(
 ) -> None:
     response = put_profile(client, auth, birth_date="2010-01-01")
     assert response.status_code == 422
-    assert "age" in response.json()["detail"]
+    assert "18 or older" in response.json()["detail"]
 
 
 @pytest.mark.parametrize(
@@ -273,7 +273,7 @@ def test_range_errors_use_the_same_shape(client: TestClient, auth: dict[str, str
     body = put_profile(client, auth, birth_date="2010-01-01").json()
     assert isinstance(body["detail"], str)
     assert [item["field"] for item in body["errors"]] == ["birth_date"]
-    assert "age" in body["errors"][0]["message"]
+    assert "18 or older" in body["errors"][0]["message"]
 
 
 @pytest.mark.parametrize(
@@ -332,3 +332,68 @@ def test_the_current_goal_endpoint_also_has_the_estimate(
 ) -> None:
     put_profile(client, auth)
     assert client.get("/api/v1/goals/current", headers=auth).json()["weeks_to_goal"] == 20
+
+
+# --- M5.1: every problem at once, in the person's units, and sensible body sizes ---------------
+
+
+def test_every_range_problem_is_reported_in_one_response(
+    client: TestClient, auth: dict[str, str]
+) -> None:
+    body = put_profile(
+        client,
+        auth,
+        birth_date="2010-01-01",
+        height_cm=300,
+        weight_kg=900,
+        goal_weight_kg=5,
+        timezone="Mars/Olympus",
+    ).json()
+    # The bad time zone is caught first, by the automatic checks, on its own...
+    assert [item["field"] for item in body["errors"]] == ["timezone"]
+    # ...and once it is fixed, everything else is reported together.
+    body = put_profile(
+        client, auth, birth_date="2010-01-01", height_cm=300, weight_kg=900, goal_weight_kg=5
+    ).json()
+    assert body["detail"] == "Some answers need fixing."
+    assert {item["field"] for item in body["errors"]} == {
+        "birth_date",
+        "height_cm",
+        "weight_kg",
+        "goal_weight_kg",
+    }
+
+
+def test_messages_use_the_units_chosen_in_the_survey(
+    client: TestClient, auth: dict[str, str]
+) -> None:
+    imperial = put_profile(client, auth, weight_kg=500, unit_preference="imperial").json()
+    assert imperial["errors"][0]["message"] == "Weight must be between 67 lb and 661 lb."
+    metric = put_profile(client, auth, weight_kg=500, unit_preference="metric").json()
+    assert metric["errors"][0]["message"] == "Weight must be between 30 kg and 300 kg."
+    feet = put_profile(client, auth, height_cm=300, unit_preference="imperial").json()
+    assert feet["errors"][0]["message"] == "Height must be between 3 ft 4 in and 8 ft 2 in."
+
+
+def test_an_unhealthy_goal_weight_is_rejected_and_nothing_is_saved(
+    client: TestClient, auth: dict[str, str]
+) -> None:
+    response = put_profile(client, auth, goal_weight_kg=499)  # about 1100 lb
+    assert response.status_code == 422
+    assert response.json()["errors"][0]["field"] == "goal_weight_kg"
+    assert client.get("/api/v1/users/me/profile", headers=auth).status_code == 404
+
+
+def test_a_height_and_weight_that_do_not_add_up_are_rejected(
+    client: TestClient, auth: dict[str, str]
+) -> None:
+    response = put_profile(client, auth, height_cm=183, weight_kg=36, goal_weight_kg=None)
+    assert response.status_code == 422
+    assert "don't look right together" in response.json()["errors"][0]["message"]
+
+
+def test_the_limits_endpoint_needs_no_login_and_matches_the_rules(client: TestClient) -> None:
+    body = client.get("/api/v1/limits").json()
+    assert body["min_age_years"] == 18
+    assert body["max_weight_kg"] == 300
+    assert body["min_goal_bmi_when_losing"] == 18.5

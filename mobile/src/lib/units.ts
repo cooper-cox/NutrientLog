@@ -40,3 +40,34 @@ export function formatRate(kgPerWeek: number, units: 'metric' | 'imperial'): str
   const pounds = Math.round(kgToLb(kgPerWeek) * 2) / 2;
   return `about ${pounds} lb per week`;
 }
+
+const EPSILON = 1e-9;
+
+function roundTowards(value: number, roundUp: boolean): number {
+  return roundUp ? Math.ceil(value - EPSILON) : Math.floor(value + EPSILON);
+}
+
+/**
+ * A weight limit as text in the person's units, rounded so the limit shown is never too generous:
+ * lower limits round up and upper limits round down, so typing exactly the number shown is
+ * always accepted. Matches the wording the server uses.
+ */
+export function formatWeightLimit(
+  kg: number,
+  units: 'metric' | 'imperial',
+  roundUp: boolean,
+): string {
+  const whole = roundTowards(units === 'metric' ? kg : kgToLb(kg), roundUp);
+  return units === 'metric' ? `${whole} kg` : `${whole} lb`;
+}
+
+/** A height limit as text: centimetres, or feet and whole inches. Rounded as above. */
+export function formatHeightLimit(
+  cm: number,
+  units: 'metric' | 'imperial',
+  roundUp: boolean,
+): string {
+  if (units === 'metric') return `${roundTowards(cm, roundUp)} cm`;
+  const totalInches = roundTowards(cm / CM_PER_INCH, roundUp);
+  return `${Math.floor(totalInches / 12)} ft ${totalInches % 12} in`;
+}

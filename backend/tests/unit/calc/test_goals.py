@@ -9,7 +9,7 @@ from app.calc.calorie_target import (
     bmr_mifflin_st_jeor,
     calculate_calorie_target,
 )
-from app.calc.goals import check_goal_weight, weeks_to_goal
+from app.calc.goals import weeks_to_goal
 
 
 def test_no_answer_is_halfway_between_male_and_female() -> None:
@@ -48,23 +48,6 @@ def test_range_errors_name_the_field_and_are_still_value_errors() -> None:
         )
     assert caught.value.field == "birth_date"
     assert isinstance(caught.value, ValueError)
-
-
-@pytest.mark.parametrize(
-    ("goal", "goal_weight"),
-    [(GoalType.GAIN, 85), (GoalType.LOSE, 75), (GoalType.MAINTAIN, 60), (GoalType.GAIN, None)],
-)
-def test_sensible_goal_weights_pass(goal: GoalType, goal_weight: float | None) -> None:
-    check_goal_weight(goal, 80, goal_weight)
-
-
-@pytest.mark.parametrize(
-    ("goal", "goal_weight"), [(GoalType.GAIN, 80), (GoalType.GAIN, 70), (GoalType.LOSE, 80)]
-)
-def test_goal_weights_pointing_the_wrong_way_fail(goal: GoalType, goal_weight: float) -> None:
-    with pytest.raises(InvalidInputError) as caught:
-        check_goal_weight(goal, 80, goal_weight)
-    assert caught.value.field == "goal_weight_kg"
 
 
 @pytest.mark.parametrize(

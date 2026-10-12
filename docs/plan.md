@@ -1,4 +1,4 @@
-# NutrientLog: Project Plan (Draft 3)
+# NutrientLog: Project Plan (Draft 4)
 
 Working name: **NutrientLog** (placeholder, can change anytime).
 Status: planning only. No code until this plan is agreed.
@@ -278,3 +278,39 @@ Every version must pass the version gate in section 4 before the next begins.
 2. **Maintain-goal window:** is about 90-110% of target right? Also can wait until v0.6.
 3. **v0.1 phone checklist:** drafted in `v0.1-build-plan.md` for your review.
 4. App name and branding (placeholder: NutrientLog; real design comes in v0.8).
+
+## 14. Personalization roadmap (proposal, from the M5 phone test)
+
+**The aim.** Whoever the person is, whatever they want from their body, and however they train or
+work, the app should give them targets that fit them: someone who plays baseball, someone who
+just wants to be healthy, someone whose job is hard manual labour.
+
+**Honest limits.** The app can support a goal with sensible, evidence-based targets. It can't
+promise a particular body, and the targets for specific sports and physiques must come from
+published sports-nutrition guidance, not guesswork, ideally reviewed by a qualified professional
+before other people use them.
+
+**What the first version lacks (see known-limitations L5, L8, L27, L30, L31):**
+
+| Missing today | Why it matters |
+|---|---|
+| Workout intensity and duration | 20 hard minutes with no rests can burn more than 40 easy ones; one multiplier per "activity level" hides this |
+| Workout type | Lifting, swimming and running call for different fuel and different physiques |
+| Training focus / physique goal | "Gain weight" could mean muscle, general mass, or sport performance |
+| Macro presets | One fixed split (protein 1.8 g/kg, fat 25%, carbs the rest) can't suit everyone |
+| Job demands, heavy sweating | Hard physical work and sweat losses raise needs for energy, fluid, sodium and other minerals |
+| Free-form weekly pace | People should type how many lb or kg per week, within safe caps |
+| Feedback from real results | The target should adjust from the actual weight trend (L5) |
+
+**Proposed order (to discuss before building):**
+1. **v0.3 (nutrition focus):** a "training focus" question in the survey, macro presets per
+   focus, protein based on lean mass or goal weight, and a free-form weekly pace.
+2. **v0.4 (weight and history):** adjust targets from the real weight trend.
+3. **v0.5 (fitness):** log workouts with type, duration and intensity, estimate calories burned
+   from MET values, and replace the single activity multiplier. Make sure workouts are never
+   counted twice once "eat back workout calories" is on.
+4. **After that:** micronutrient and hydration priorities for heavy training and physical jobs,
+   and sport-specific guidance, built from published guidance and reviewed.
+
+**Design rule.** Every new survey question must change something the person can see in their
+targets, and the results screen must explain why, in plain words.

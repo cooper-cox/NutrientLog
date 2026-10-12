@@ -8,7 +8,7 @@ their group.
 could ride along with another milestone. *Before others* means it must be fixed before anyone but
 the author uses the app.
 
-Last reviewed after: M5 (onboarding screen).
+Last reviewed after: M5.1 (survey checks).
 
 ---
 
@@ -45,8 +45,12 @@ Last reviewed after: M5 (onboarding screen).
 
 - [ ] **L4. Fixed input limits** (age 18-100, height 100-250 cm, weight 30-300 kg).
   - Why: sanity rails that reject typos and absurd values.
+  - **Progress (M5.1):** goal weights are now checked too (30-300 kg, no lower than a BMI of 18.5
+    when losing, no higher than a BMI of 45 when gaining), and a height and weight that can't both
+    be right (BMI under 14 or over 80) are rejected. All problems are shown at once, worded in the
+    person's units. The numbers live on the server and the app fetches them (`/api/v1/limits`).
   - Fix: review the limits against real use and widen them if people are being wrongly turned away.
-  - Revisit: whenever someone hits one.
+  - Revisit: whenever someone hits one. See also L29.
 
 ## B. Accuracy of the numbers
 
@@ -79,8 +83,12 @@ Last reviewed after: M5 (onboarding screen).
   (vegetarian, lower-carb).
   - Why: a simple, sensible starting point that needs no extra questions.
   - Fix: let the user adjust the split, offer a few presets, and use goal weight or an estimated
-    lean mass for protein.
-  - Revisit: after the prototype.
+    lean mass for protein. Better still, choose the split from the person's training focus (see
+    L30 and L31 and the personalization roadmap in the plan).
+  - Note (M5 phone test): 425 g of carbs felt like a lot. The arithmetic is right (about 56% of a
+    3,034-calorie target, which is normal for someone gaining weight and training), but one
+    recipe can't suit a lifter, a runner and an office worker.
+  - Revisit: after the prototype; it needs the training-focus question first.
 
 - [ ] **L9. No vitamin and mineral targets yet.**
   - Why: v0.1 covers calories and macros only.
@@ -206,10 +214,59 @@ Last reviewed after: M5 (onboarding screen).
   and the weekly pace offers a few fixed choices (gain 0.25 or 0.5 kg; lose 0.25, 0.5 or 0.75 kg).
   - Why: typed boxes are simple, work the same everywhere and are easy to test. Fixed paces keep
     people inside the safe limits.
-  - Fix: a native date picker; a free-form pace (still capped by the server).
+  - Fix: a native date picker; a free-form pace, typed in lb or kg per week (still capped by the
+    server, with a clear message when it is capped). Requested after the M5 phone test.
   - Revisit: v0.7 (function polish) or v0.8 (look and feel).
 
 - [ ] **L28. The survey is a single long scrolling form,** and nothing is saved until you press
   the button. Closing the app halfway means starting again.
   - Fix: split into a few short steps and keep a draft on the phone.
   - Revisit: v0.7.
+
+## D. Personalization (from the M5 phone test)
+
+The goal is a plan that fits each person: their body, their goal, how and why they train, and
+their job. Today's survey is a deliberately simple first version. These items, together with the
+"Personalization roadmap" in `docs/plan.md`, describe how it grows.
+
+- [ ] **L29. The body-size limits are judgement calls, not medical facts.** The limits in L4
+  (BMI 14-80 for height and weight together, goal weights no lower than BMI 18.5 when losing and
+  no higher than BMI 45 when gaining) are meant to catch typos and clearly unsafe goals. BMI is a
+  crude measure: very muscular people score high, and it ignores build and age.
+  - Why: some limit is needed, and these are conservative starting points.
+  - Fix: review the numbers with a qualified professional, and consider measures other than BMI.
+  - Revisit: *Before others*.
+
+- [ ] **L30. The activity question ignores workout intensity and duration.** "3-5 workouts a week"
+  can mean a 20-minute all-out session or a 40-minute one with long rests, and these burn very
+  different amounts.
+  - Why: one multiplier per activity level is the simplest honest starting point.
+  - Fix: ask about typical duration and intensity, and estimate calories burned per workout
+    (MET values) instead of using one multiplier. Take care not to count workouts twice once
+    "eat back workout calories" exists.
+  - Revisit: *Roadmap* (v0.5, workouts). A simple version of the question could come sooner.
+
+- [ ] **L31. The survey doesn't ask what kind of training someone does, what physique they want,
+  or what their job demands.** A lifter, a swimmer, a baseball player, and someone doing hard
+  manual labour need different calories, macros and nutrients, and "gain weight" can mean muscle
+  or just mass.
+  - Why: each extra question needs evidence-based targets behind it, and we don't have those yet.
+  - Fix: a "training focus" question (for example build muscle, lose fat, endurance, general
+    health, a named sport, physical job), with per-focus macro presets and nutrient priorities
+    taken from published sports-nutrition guidance, ideally reviewed by a professional. The app
+    can support a goal, but it should never promise a particular body.
+  - Revisit: *Roadmap* (see the plan's personalization section).
+
+- [ ] **L32. The wording of the survey checks is written twice**, once on the server and once in
+  the app (so the app can show problems as people type). The numbers come from the server, and a
+  shared file of test cases (`shared/profile_check_cases.json`) makes both sides' tests fail if
+  the answers or wording drift apart.
+  - Why: the app needs instant feedback without a round trip.
+  - Fix: if it becomes a burden, have the server return structured problem codes and let the
+    app word them.
+  - Revisit: only if the two sides keep drifting.
+
+- [ ] **L33. Scrolling to the first problem is only checked by hand.** The automated tests don't
+  simulate scrolling.
+  - Fix: add a UI test with a real scroll view, or an end-to-end test on a simulator.
+  - Revisit: when end-to-end tests are added.

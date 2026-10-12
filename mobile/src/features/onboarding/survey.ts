@@ -6,7 +6,9 @@ import type {
   Sex,
   UnitPreference,
 } from '../../api/users';
+import type { Limits } from '../../api/limits';
 import { cmToFtIn, ftInToCm, kgToLb, lbToKg, round1 } from '../../lib/units';
+import { ageOn, checkAnswers } from './checks';
 
 /** What is typed into the survey. Numbers stay as text until the person presses the button. */
 export type SurveyForm = {
@@ -41,6 +43,28 @@ export type FieldName =
 export type FieldErrors = Partial<Record<FieldName, string>>;
 
 export const DEFAULT_RATE_KG = 0.25;
+
+/**
+ * Is it time to check this group of boxes, now that the person has left one of them? A group
+ * made of several boxes waits until it is either untouched or filled in, so nobody is told off
+ * for a half-typed birth date.
+ */
+export function groupReady(form: SurveyForm, field: FieldName): boolean {
+  switch (field) {
+    case 'birth_date': {
+      const filled = [form.birthMonth, form.birthDay, form.birthYear].filter(
+        (text) => text.trim() !== '',
+      ).length;
+      return filled === 0 || filled === 3;
+    }
+    case 'height_cm':
+      return (
+        form.units === 'metric' || form.heightFeet.trim() !== '' || form.heightInches.trim() === ''
+      );
+    default:
+      return true;
+  }
+}
 
 export function emptyForm(): SurveyForm {
   return {
@@ -111,22 +135,28 @@ export function parseBirthDate(
 export type BuildResult = { ok: true; body: ProfileIn } | { ok: false; errors: FieldErrors };
 
 /**
- * Turns what was typed into what the server expects. Only checks that each answer is present
- * and readable; the server decides whether the values are in a safe range, because it is the
- * one place those rules live.
+ * Turns what was typed into what the server expects, and checks every answer: that it is present
+ * and readable, and (when the server's limits are known) that it is in range and makes sense with
+ * the other answers. All problems are returned together. The server checks everything again when
+ * the survey is saved, so a missing `limits` only means fewer checks on the phone.
  */
-export function buildProfileRequest(form: SurveyForm, timezone: string, today: Date): BuildResult {
+export function buildProfileRequest(
+  form: SurveyForm,
+  timezone: string,
+  today: Date,
+  limits: Limits | null = null,
+): BuildResult {
   const errors: FieldErrors = {};
   const metric = form.units === 'metric';
 
   if (form.sex === null) errors.sex = 'Choose an option.';
 
-  let birthDate = '';
+  let birthDate: string | undefined;
   const birth = parseBirthDate(form.birthMonth, form.birthDay, form.birthYear, today);
   if ('error' in birth) errors.birth_date = birth.error;
   else birthDate = birth.date;
 
-  let heightCm = 0;
+  let heightCm: number | undefined;
   if (metric) {
     const cm = parseNumber(form.heightCm);
     if (cm === null) errors.height_cm = 'Enter your height in centimetres.';
@@ -140,17 +170,18 @@ export function buildProfileRequest(form: SurveyForm, timezone: string, today: D
     else heightCm = round1(ftInToCm(feet, inches));
   }
 
-  let weightKg = 0;
+  let weightKg: number | undefined;
   const weight = parseNumber(form.weight);
   if (weight === null)
     errors.weight_kg = `Enter your weight in ${metric ? 'kilograms' : 'pounds'}.`;
   else weightKg = round1(metric ? weight : lbToKg(weight));
 
-  let goalWeightKg: number | null = null;
+  let goalWeightKg: number | null | undefined = null;
   if (form.goalWeight.trim() !== '') {
     const goalWeight = parseNumber(form.goalWeight);
     if (goalWeight === null) {
       errors.goal_weight_kg = `Enter a goal weight in ${metric ? 'kilograms' : 'pounds'}, or leave it blank.`;
+      goalWeightKg = undefined;
     } else {
       goalWeightKg = round1(metric ? goalWeight : lbToKg(goalWeight));
     }
@@ -159,8 +190,29 @@ export function buildProfileRequest(form: SurveyForm, timezone: string, today: D
   if (form.activity === null) errors.activity_level = 'Choose an option.';
   if (form.goalType === null) errors.goal_type = 'Choose an option.';
 
+  if (limits !== null) {
+    const [year, month, day] = (birthDate ?? '').split('-').map(Number);
+    const rangeProblems = checkAnswers(
+      {
+        ageYears: birthDate === undefined ? undefined : ageOn(year, month, day, today),
+        heightCm,
+        weightKg,
+        goalWeightKg,
+        // Until a goal is chosen, only the "is this a possible weight" check applies.
+        goalType: form.goalType ?? 'maintain',
+        units: form.units,
+      },
+      limits,
+    );
+    Object.assign(errors, rangeProblems);
+  }
+
   if (
     Object.keys(errors).length > 0 ||
+    birthDate === undefined ||
+    heightCm === undefined ||
+    weightKg === undefined ||
+    goalWeightKg === undefined ||
     form.sex === null ||
     form.activity === null ||
     form.goalType === null

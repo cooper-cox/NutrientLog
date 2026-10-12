@@ -127,24 +127,24 @@ def test_floor_is_not_reported_when_not_needed() -> None:
 
 @pytest.mark.parametrize("age_years", [17, 101])
 def test_out_of_range_age_is_rejected(age_years: int) -> None:
-    with pytest.raises(ValueError, match="age"):
+    with pytest.raises(ValueError, match="adults|ages"):
         man_target(age_years=age_years)
 
 
 @pytest.mark.parametrize("height_cm", [99.0, 251.0])
 def test_out_of_range_height_is_rejected(height_cm: float) -> None:
-    with pytest.raises(ValueError, match="height"):
+    with pytest.raises(ValueError, match="(?i)height"):
         man_target(height_cm=height_cm)
 
 
 @pytest.mark.parametrize("weight_kg", [29.0, 301.0])
 def test_out_of_range_weight_is_rejected(weight_kg: float) -> None:
-    with pytest.raises(ValueError, match="weight"):
+    with pytest.raises(ValueError, match="(?i)weight"):
         man_target(weight_kg=weight_kg)
 
 
 def test_negative_rate_is_rejected() -> None:
-    with pytest.raises(ValueError, match="rate"):
+    with pytest.raises(ValueError, match="(?i)pace"):
         man_target(GoalType.GAIN, rate=-0.5)
 
 

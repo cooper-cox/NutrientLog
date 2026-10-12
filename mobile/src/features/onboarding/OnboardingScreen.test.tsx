@@ -1,15 +1,22 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import sharedCases from '../../../../shared/profile_check_cases.json';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ApiError } from '../../api/client';
+import { getLimits, type Limits } from '../../api/limits';
 import type { ProfileSaved } from '../../api/users';
 import { OnboardingScreen } from './OnboardingScreen';
 import { saveSurvey } from './saveSurvey';
 
 jest.mock('./saveSurvey');
+jest.mock('../../api/limits');
 jest.mock('../../lib/timezone', () => ({ getTimeZone: () => 'America/Los_Angeles' }));
 
 const mockSaveSurvey = jest.mocked(saveSurvey);
+const mockGetLimits = jest.mocked(getLimits);
+
+// The same numbers the server reports (shared with the server's own tests).
+const LIMITS = sharedCases.limits as Limits;
 const SAVED = { goal: { calories: 3034 } } as ProfileSaved;
 
 const PHONE = {
@@ -51,7 +58,15 @@ function fillInSurvey() {
 beforeEach(() => {
   jest.resetAllMocks();
   mockSaveSurvey.mockResolvedValue(SAVED);
+  mockGetLimits.mockResolvedValue(LIMITS);
 });
+
+/** Lets the server's limits arrive before the test carries on. */
+const limitsArrive = () => act(async () => {});
+
+function leave(label: string) {
+  fireEvent(screen.getByLabelText(label), 'blur');
+}
 
 describe('OnboardingScreen', () => {
   it('shows the medical disclaimer and explains the sex question', () => {
@@ -66,7 +81,7 @@ describe('OnboardingScreen', () => {
 
     fireEvent.press(screen.getByRole('button', { name: 'Calculate my targets' }));
 
-    expect(screen.getByText('Some answers need fixing. They are marked below.')).toBeTruthy();
+    expect(screen.getByText('6 answers need fixing. They are marked in red.')).toBeTruthy();
     expect(
       screen.getByText('Enter your birth date as month, day and a 4-digit year.'),
     ).toBeTruthy();
@@ -126,8 +141,8 @@ describe('OnboardingScreen', () => {
   it('shows the server’s message under the box it is about', async () => {
     mockSaveSurvey.mockRejectedValue(
       new ApiError('Some answers need fixing.', 422, {
-        goal_weight_kg: 'to gain weight, the goal weight must be above your current weight',
-        birth_date: 'age must be between 18 and 100',
+        goal_weight_kg: 'To gain weight, the goal weight must be above your current weight.',
+        birth_date: 'Please check your birth date: we support ages up to 100.',
       }),
     );
     renderScreen();
@@ -135,9 +150,11 @@ describe('OnboardingScreen', () => {
 
     fireEvent.press(screen.getByRole('button', { name: 'Calculate my targets' }));
 
-    expect(await screen.findByText('age must be between 18 and 100')).toBeTruthy();
     expect(
-      screen.getByText('to gain weight, the goal weight must be above your current weight'),
+      await screen.findByText('Please check your birth date: we support ages up to 100.'),
+    ).toBeTruthy();
+    expect(
+      screen.getByText('To gain weight, the goal weight must be above your current weight.'),
     ).toBeTruthy();
   });
 
@@ -194,5 +211,142 @@ describe('OnboardingScreen', () => {
     renderScreen({ onCancel });
     fireEvent.press(screen.getByRole('button', { name: 'Cancel' }));
     expect(onCancel).toHaveBeenCalled();
+  });
+});
+
+describe('checking answers as they are typed', () => {
+  it('shows a problem when the person leaves the box, not only when they press the button', async () => {
+    renderScreen();
+    await limitsArrive();
+    choose('Pounds and feet');
+    type('Current weight in pounds', '9999');
+    expect(screen.queryByText(/Weight must be between/)).toBeNull();
+
+    leave('Current weight in pounds');
+
+    expect(screen.getByText('Weight must be between 67 lb and 661 lb.')).toBeTruthy();
+    expect(mockSaveSurvey).not.toHaveBeenCalled();
+  });
+
+  it('words height and weight problems in the units that were chosen', async () => {
+    renderScreen();
+    await limitsArrive();
+
+    choose('Pounds and feet');
+    type('Height, feet', '9');
+    leave('Height, feet');
+    expect(screen.getByText('Height must be between 3 ft 4 in and 8 ft 2 in.')).toBeTruthy();
+
+    choose('Kilograms and centimetres');
+    type('Height in centimetres', '300');
+    leave('Height in centimetres');
+    expect(screen.getByText('Height must be between 100 cm and 250 cm.')).toBeTruthy();
+  });
+
+  it('does not complain about a half-typed birth date', async () => {
+    renderScreen();
+    await limitsArrive();
+
+    type('Birth month', '1');
+    leave('Birth month');
+    expect(screen.queryByText(/4-digit year|does not exist|must be 18/)).toBeNull();
+
+    type('Birth day', '1');
+    type('Birth year', '2015');
+    leave('Birth year');
+    expect(screen.getByText('NutrientLog is for adults: you must be 18 or older.')).toBeTruthy();
+  });
+
+  it('shows every problem at once when the button is pressed', async () => {
+    renderScreen();
+    await limitsArrive();
+    choose('Pounds and feet');
+    choose('Male');
+    type('Birth month', '1');
+    type('Birth day', '1');
+    type('Birth year', '2015');
+    type('Height, feet', '9');
+    type('Current weight in pounds', '9999');
+    type('Goal weight in pounds', '1100');
+    choose('Moderately active');
+    choose('Gain weight');
+
+    fireEvent.press(screen.getByRole('button', { name: 'Calculate my targets' }));
+
+    expect(screen.getByText('4 answers need fixing. They are marked in red.')).toBeTruthy();
+    expect(screen.getByText('NutrientLog is for adults: you must be 18 or older.')).toBeTruthy();
+    expect(screen.getByText('Height must be between 3 ft 4 in and 8 ft 2 in.')).toBeTruthy();
+    expect(screen.getAllByText('Weight must be between 67 lb and 661 lb.')).toHaveLength(1);
+    expect(screen.getByText('Goal weight must be between 67 lb and 661 lb.')).toBeTruthy();
+    expect(mockSaveSurvey).not.toHaveBeenCalled();
+  });
+
+  it('rejects an absurdly low weight for the height', async () => {
+    renderScreen();
+    await limitsArrive();
+    fillInSurvey();
+    type('Height in centimetres', '183');
+    type('Current weight in kilograms', '36');
+
+    fireEvent.press(screen.getByRole('button', { name: 'Calculate my targets' }));
+
+    expect(screen.getByText(/don't look right together/)).toBeTruthy();
+    expect(mockSaveSurvey).not.toHaveBeenCalled();
+  });
+
+  it('updates the goal weight problem when the goal changes', async () => {
+    renderScreen();
+    await limitsArrive();
+    fillInSurvey();
+    type('Goal weight in kilograms', '70'); // below 80 kg, but the goal is to gain
+    leave('Goal weight in kilograms');
+    expect(
+      screen.getByText('To gain weight, the goal weight must be above your current weight.'),
+    ).toBeTruthy();
+
+    choose('Lose weight');
+
+    expect(screen.queryByText(/must be above your current weight/)).toBeNull();
+  });
+
+  it('clears a problem as soon as it is fixed', async () => {
+    renderScreen();
+    await limitsArrive();
+    choose('Kilograms and centimetres');
+    type('Current weight in kilograms', '5');
+    leave('Current weight in kilograms');
+    expect(screen.getByText('Weight must be between 30 kg and 300 kg.')).toBeTruthy();
+
+    type('Current weight in kilograms', '80');
+
+    expect(screen.queryByText(/Weight must be between/)).toBeNull();
+  });
+
+  it('still lets the server decide if the limits could not be fetched', async () => {
+    mockGetLimits.mockRejectedValue(new ApiError('Could not reach the server.'));
+    renderScreen();
+    await limitsArrive();
+    fillInSurvey();
+    type('Current weight in kilograms', '500');
+
+    fireEvent.press(screen.getByRole('button', { name: 'Calculate my targets' }));
+
+    await waitFor(() => expect(mockSaveSurvey).toHaveBeenCalled());
+    expect(mockSaveSurvey.mock.calls[0][0].weight_kg).toBe(500);
+  });
+
+  it('clears the server’s message once an answer is changed', async () => {
+    mockSaveSurvey.mockRejectedValue(
+      new ApiError('Some answers need fixing.', 422, { name: 'Something about the name.' }),
+    );
+    renderScreen();
+    await limitsArrive();
+    fillInSurvey();
+    fireEvent.press(screen.getByRole('button', { name: 'Calculate my targets' }));
+    expect(await screen.findByText('Something about the name.')).toBeTruthy();
+
+    type('Your name', 'Coop');
+
+    expect(screen.queryByText('Something about the name.')).toBeNull();
   });
 });

@@ -5,7 +5,7 @@
 
 A nutrition-first calorie and nutrient tracker for iPhone. It tells you what your body needs and why, not just how many calories you ate.
 
-**Status:** v0.1 in progress. Done: backend (health, users, profile, goals), the Expo app, and CI for both. M5 (the onboarding survey and results screen) is in review. Next: M6, foods on the backend.
+**Status:** v0.1 in progress. Done: backend (health, users, profile, goals), the Expo app, and CI for both. M5 (the onboarding survey and results screen) is merged and M5.1 (better survey checks) is in review. Next: M6, foods on the backend.
 
 ## Stack
 
@@ -19,6 +19,7 @@ A nutrition-first calorie and nutrient tracker for iPhone. It tells you what you
 
 ```
 backend/    FastAPI app, migrations, tests
+shared/     Test cases used by both the backend and the app, so they agree
 mobile/     Expo app
 docs/       Project plan, build plans, per-version phone test checklists
 .github/    CI workflows
@@ -54,6 +55,7 @@ Everything under `/api/v1` can be tried from the docs page at http://localhost:8
 | `POST /api/v1/users` | Creates an anonymous user and returns a secret token |
 | `GET /api/v1/users/me/profile` | The saved survey answers (404 until onboarding is done) |
 | `PUT /api/v1/users/me/profile` | Saves the survey and calculates a new goal. Answers it can't accept come back as `422` with `errors: [{field, message}]` |
+| `GET /api/v1/limits` | The numbers the survey answers are checked against (no login needed), so the app can check as people type |
 | `GET /api/v1/goals/current` | The current calorie and macro targets, with how they were calculated |
 
 ## Running the app on your iPhone
