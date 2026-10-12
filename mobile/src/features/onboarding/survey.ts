@@ -53,23 +53,6 @@ export function cleanNumber(text: string): string {
 }
 
 /**
- * The answers that have been typed in enough to check (so they can show a problem after the
- * person pauses typing, even if they haven't left the box).
- */
-export function answersWithText(form: SurveyForm): FieldName[] {
-  const found: FieldName[] = [];
-  if ([form.birthMonth, form.birthDay, form.birthYear].every((text) => text.trim() !== '')) {
-    found.push('birth_date');
-  }
-  if ((form.units === 'metric' ? form.heightCm : form.heightFeet).trim() !== '') {
-    found.push('height_cm');
-  }
-  if (form.weight.trim() !== '') found.push('weight_kg');
-  if (form.goalWeight.trim() !== '') found.push('goal_weight_kg');
-  return found;
-}
-
-/**
  * Is it time to check this group of boxes, now that the person has left one of them? A group
  * made of several boxes waits until it is either untouched or filled in, so nobody is told off
  * for a half-typed birth date.
@@ -132,6 +115,27 @@ function pad(value: number, length: number): string {
   return String(value).padStart(length, '0');
 }
 
+export const BIRTH_INCOMPLETE = 'Enter your birth date as month, day and a 4-digit year.';
+
+export type BirthBox = 'month' | 'day' | 'year';
+
+/**
+ * A problem with one birth date box on its own (so it can be pointed out as soon as the person
+ * leaves that box, without waiting for the other two). An empty box has no problem yet.
+ */
+export function birthBoxProblem(form: SurveyForm, box: BirthBox): string | undefined {
+  const text = { month: form.birthMonth, day: form.birthDay, year: form.birthYear }[box].trim();
+  if (text === '') return undefined;
+  const value = parseWhole(text);
+  if (box === 'year')
+    return value === null || text.length !== 4 ? 'Enter a 4-digit year.' : undefined;
+  const last = box === 'month' ? 12 : 31;
+  if (value === null || value < 1 || value > last) {
+    return box === 'month' ? 'The month must be from 1 to 12.' : 'The day must be from 1 to 31.';
+  }
+  return undefined;
+}
+
 /** A real calendar date that is not in the future, as YYYY-MM-DD. Otherwise a message. */
 export function parseBirthDate(
   month: string,
@@ -143,7 +147,7 @@ export function parseBirthDate(
   const d = parseWhole(day);
   const y = parseWhole(year);
   if (m === null || d === null || y === null || year.trim().length !== 4) {
-    return { error: 'Enter your birth date as month, day and a 4-digit year.' };
+    return { error: BIRTH_INCOMPLETE };
   }
   const check = new Date(Date.UTC(y, m - 1, d));
   const isRealDate =

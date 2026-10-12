@@ -1,6 +1,6 @@
 import type { Profile } from '../../api/users';
 import {
-  answersWithText,
+  birthBoxProblem,
   buildProfileRequest,
   cleanNumber,
   changeUnits,
@@ -298,27 +298,22 @@ describe('cleanNumber', () => {
   });
 });
 
-describe('answersWithText', () => {
-  it('lists only the answers filled in enough to check', () => {
-    expect(answersWithText(emptyForm())).toEqual([]);
-    expect(
-      answersWithText({ ...emptyForm(), birthMonth: '1', birthDay: '2', weight: '150' }),
-    ).toEqual(['weight_kg']);
-    expect(
-      answersWithText({
-        ...emptyForm(),
-        birthMonth: '1',
-        birthDay: '2',
-        birthYear: '1990',
-        heightFeet: '6',
-        goalWeight: '180',
-      }),
-    ).toEqual(['birth_date', 'height_cm', 'goal_weight_kg']);
+describe('birthBoxProblem', () => {
+  const form = { ...emptyForm(), birthMonth: '90', birthDay: '32', birthYear: '19' };
+
+  it('points out a bad box on its own, before the others are filled in', () => {
+    expect(birthBoxProblem({ ...emptyForm(), birthMonth: '90' }, 'month')).toBe(
+      'The month must be from 1 to 12.',
+    );
+    expect(birthBoxProblem(form, 'day')).toBe('The day must be from 1 to 31.');
+    expect(birthBoxProblem(form, 'year')).toBe('Enter a 4-digit year.');
   });
 
-  it('uses the centimetres box for height when the units are metric', () => {
-    const metric = { ...emptyForm(), units: 'metric' as const, heightFeet: '6' };
-    expect(answersWithText(metric)).toEqual([]);
-    expect(answersWithText({ ...metric, heightCm: '180' })).toEqual(['height_cm']);
+  it('has no complaint about empty or good boxes', () => {
+    expect(birthBoxProblem(emptyForm(), 'month')).toBeUndefined();
+    expect(birthBoxProblem({ ...emptyForm(), birthMonth: '12' }, 'month')).toBeUndefined();
+    expect(birthBoxProblem({ ...emptyForm(), birthMonth: '0' }, 'month')).toBeDefined();
+    expect(birthBoxProblem({ ...emptyForm(), birthDay: '31' }, 'day')).toBeUndefined();
+    expect(birthBoxProblem({ ...emptyForm(), birthYear: '1996' }, 'year')).toBeUndefined();
   });
 });

@@ -58,11 +58,20 @@ function fillInSurvey() {
 beforeEach(() => {
   jest.resetAllMocks();
   mockSaveSurvey.mockResolvedValue(SAVED);
-  mockGetLimits.mockResolvedValue(LIMITS);
+  // By default the limits never arrive, so nothing changes after a test has finished.
+  mockGetLimits.mockReturnValue(new Promise(() => {}));
 });
 
 /** Lets the server's limits arrive before the test carries on. */
 const limitsArrive = () => act(async () => {});
+
+/** Shows the screen with the server's limits already loaded. */
+async function renderWithLimits() {
+  mockGetLimits.mockResolvedValue(LIMITS);
+  const shown = renderScreen();
+  await limitsArrive();
+  return shown;
+}
 
 function leave(label: string) {
   fireEvent(screen.getByLabelText(label), 'blur');
@@ -216,8 +225,7 @@ describe('OnboardingScreen', () => {
 
 describe('checking answers as they are typed', () => {
   it('shows a problem when the person leaves the box, not only when they press the button', async () => {
-    renderScreen();
-    await limitsArrive();
+    await renderWithLimits();
     choose('Pounds and feet');
     type('Current weight in pounds', '9999');
     expect(screen.queryByText(/Weight must be between/)).toBeNull();
@@ -229,8 +237,7 @@ describe('checking answers as they are typed', () => {
   });
 
   it('words height and weight problems in the units that were chosen', async () => {
-    renderScreen();
-    await limitsArrive();
+    await renderWithLimits();
 
     choose('Pounds and feet');
     type('Height, feet', '9');
@@ -244,8 +251,7 @@ describe('checking answers as they are typed', () => {
   });
 
   it('does not complain about a half-typed birth date', async () => {
-    renderScreen();
-    await limitsArrive();
+    await renderWithLimits();
 
     type('Birth month', '1');
     leave('Birth month');
@@ -258,8 +264,7 @@ describe('checking answers as they are typed', () => {
   });
 
   it('shows every problem at once when the button is pressed', async () => {
-    renderScreen();
-    await limitsArrive();
+    await renderWithLimits();
     choose('Pounds and feet');
     choose('Male');
     type('Birth month', '1');
@@ -282,8 +287,7 @@ describe('checking answers as they are typed', () => {
   });
 
   it('rejects an absurdly low weight for the height', async () => {
-    renderScreen();
-    await limitsArrive();
+    await renderWithLimits();
     fillInSurvey();
     type('Height in centimetres', '183');
     type('Current weight in kilograms', '36');
@@ -295,8 +299,7 @@ describe('checking answers as they are typed', () => {
   });
 
   it('updates the goal weight problem when the goal changes', async () => {
-    renderScreen();
-    await limitsArrive();
+    await renderWithLimits();
     fillInSurvey();
     type('Goal weight in kilograms', '70'); // below 80 kg, but the goal is to gain
     leave('Goal weight in kilograms');
@@ -310,8 +313,7 @@ describe('checking answers as they are typed', () => {
   });
 
   it('clears a problem as soon as it is fixed', async () => {
-    renderScreen();
-    await limitsArrive();
+    await renderWithLimits();
     choose('Kilograms and centimetres');
     type('Current weight in kilograms', '5');
     leave('Current weight in kilograms');
@@ -339,8 +341,7 @@ describe('checking answers as they are typed', () => {
     mockSaveSurvey.mockRejectedValue(
       new ApiError('Some answers need fixing.', 422, { name: 'Something about the name.' }),
     );
-    renderScreen();
-    await limitsArrive();
+    await renderWithLimits();
     fillInSurvey();
     fireEvent.press(screen.getByRole('button', { name: 'Calculate my targets' }));
     expect(await screen.findByText('Something about the name.')).toBeTruthy();
@@ -350,38 +351,62 @@ describe('checking answers as they are typed', () => {
     expect(screen.queryByText('Something about the name.')).toBeNull();
   });
 
-  it('also shows a problem after a pause in typing, without leaving the box', async () => {
-    jest.useFakeTimers();
-    try {
-      renderScreen();
-      await limitsArrive();
-      choose('Pounds and feet');
-      type('Current weight in pounds', '9999');
-      expect(screen.queryByText(/Weight must be between/)).toBeNull();
+  it('does not show a problem while the person is still typing in the box', async () => {
+    await renderWithLimits();
+    choose('Pounds and feet');
+    fireEvent(screen.getByLabelText('Current weight in pounds'), 'focus');
+    type('Current weight in pounds', '9999');
+    expect(screen.queryByText(/Weight must be between/)).toBeNull();
 
-      act(() => {
-        jest.advanceTimersByTime(900);
-      });
-
-      expect(screen.getByText('Weight must be between 70 lb and 660 lb.')).toBeTruthy();
-    } finally {
-      jest.useRealTimers();
-    }
+    // Even if they have been to the box before, editing it again hides the problem.
+    leave('Current weight in pounds');
+    expect(screen.getByText('Weight must be between 70 lb and 660 lb.')).toBeTruthy();
+    fireEvent(screen.getByLabelText('Current weight in pounds'), 'focus');
+    type('Current weight in pounds', '1');
+    expect(screen.queryByText(/Weight must be between/)).toBeNull();
+    leave('Current weight in pounds');
+    expect(screen.getByText('Weight must be between 70 lb and 660 lb.')).toBeTruthy();
   });
 
-  it('does not nag about a half-typed birth date after a pause either', async () => {
-    jest.useFakeTimers();
-    try {
-      renderScreen();
-      await limitsArrive();
-      type('Birth month', '1');
-      act(() => {
-        jest.advanceTimersByTime(2000);
-      });
-      expect(screen.queryByText(/4-digit year|does not exist|must be 18/)).toBeNull();
-    } finally {
-      jest.useRealTimers();
-    }
+  it('points out a bad birth month as soon as that box is left', async () => {
+    await renderWithLimits();
+    fireEvent(screen.getByLabelText('Birth month'), 'focus');
+    type('Birth month', '90');
+    expect(screen.queryByText('The month must be from 1 to 12.')).toBeNull();
+
+    leave('Birth month');
+    expect(screen.getByText('The month must be from 1 to 12.')).toBeTruthy();
+
+    // Moving on to the next box does not make it disappear; fixing it does.
+    fireEvent(screen.getByLabelText('Birth day'), 'focus');
+    expect(screen.getByText('The month must be from 1 to 12.')).toBeTruthy();
+    type('Birth month', '9');
+    expect(screen.queryByText('The month must be from 1 to 12.')).toBeNull();
+  });
+
+  it('points out a bad birth day and year when each is left', async () => {
+    await renderWithLimits();
+    type('Birth day', '45');
+    leave('Birth day');
+    expect(screen.getByText('The day must be from 1 to 31.')).toBeTruthy();
+    type('Birth day', '4');
+    type('Birth year', '19');
+    leave('Birth year');
+    expect(screen.getByText('Enter a 4-digit year.')).toBeTruthy();
+  });
+
+  it('only says the birth date is incomplete after the button is pressed', async () => {
+    await renderWithLimits();
+    type('Birth month', '1');
+    leave('Birth month');
+    type('Birth day', '2');
+    leave('Birth day');
+    expect(screen.queryByText(/4-digit year/)).toBeNull();
+
+    fireEvent.press(screen.getByRole('button', { name: 'Calculate my targets' }));
+    expect(
+      screen.getAllByText('Enter your birth date as month, day and a 4-digit year.').length,
+    ).toBeGreaterThan(0);
   });
 
   it('warns when the limits could not be loaded, after a few tries', async () => {
@@ -410,6 +435,7 @@ describe('checking answers as they are typed', () => {
     jest.useFakeTimers();
     try {
       mockGetLimits.mockRejectedValueOnce(new ApiError('Could not reach the server.'));
+      mockGetLimits.mockResolvedValue(LIMITS);
       renderScreen();
       await limitsArrive();
       await act(async () => {
