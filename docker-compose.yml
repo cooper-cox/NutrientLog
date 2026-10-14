@@ -19,6 +19,8 @@ services:
     build: ./backend
     environment:
       DATABASE_URL: postgresql+psycopg://nutrientlog:nutrientlog@db:5432/nutrientlog
+      # Optional: put USDA_API_KEY=... in a file named .env next to this one to turn on USDA search.
+      USDA_API_KEY: ${USDA_API_KEY:-}
     ports:
       - "8000:8000" # reachable from the phone over Wi-Fi
     depends_on:

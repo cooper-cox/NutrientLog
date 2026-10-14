@@ -7,6 +7,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=None, extra="ignore")
 
     database_url: str = "postgresql+psycopg://nutrientlog:nutrientlog@localhost:5432/nutrientlog"
+    # Free key from https://fdc.nal.usda.gov/api-key-signup. Empty turns the USDA lookup off.
+    usda_api_key: str = ""
 
 
 settings = Settings()
