@@ -1,12 +1,16 @@
 """Shared route dependencies."""
 
+from functools import lru_cache
 from typing import Annotated
 
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.db import get_session
+from app.integrations.base import FoodSource
+from app.integrations.usda import UsdaClient
 from app.models import User
 from app.services import users as users_service
 
@@ -32,3 +36,15 @@ def get_current_user(
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+@lru_cache
+def _usda_client(api_key: str) -> UsdaClient:
+    return UsdaClient(api_key)
+
+
+def get_food_source() -> FoodSource | None:
+    """The outside food database, or None when no USDA key is set (the lookup is then off)."""
+    if not settings.usda_api_key:
+        return None
+    return _usda_client(settings.usda_api_key)

@@ -8,7 +8,7 @@ their group.
 could ride along with another milestone. *Before others* means it must be fixed before anyone but
 the author uses the app.
 
-Last reviewed after: M5.2 (survey check fixes).
+Last reviewed after: M6 (foods backend).
 
 ---
 
@@ -283,3 +283,33 @@ their job. Today's survey is a deliberately simple first version. These items, t
     choices (weekly pace, birth year) in the v0.8 look-and-feel pass, and always keep typing as
     an option.
   - Revisit: v0.8.
+
+## E. Added with M6 (foods)
+
+- [ ] **L35. The USDA lookup has not been run against the real USDA service.** The mapping was
+  written from USDA's documentation and tested with sample replies shaped like it. The build
+  environment cannot reach the internet, so the first real search happens on your computer.
+  - Fix: with a free key in `.env`, search "banana" and "clif bar" at `/docs` and check the
+    calories look right (about 89 and 380 per 100 g). Anything off is a small mapping fix.
+  - Revisit: at the start of M7.
+
+- [ ] **L36. Saved foods can't be edited or deleted yet**, and nothing is shared between people.
+  - Fix: edit/delete saved foods (planned with the "manage saved foods" screen), and a shared
+    pool of foods once there is a reason for one.
+  - Revisit: v0.2.
+
+- [ ] **L37. Saved-food search is a plain "contains the words" match** (no spelling tolerance,
+  no ranking by how often you eat something). It is fast enough for one person's foods.
+  - Fix: Postgres text search or trigram matching, plus recents and favorites.
+  - Revisit: when a person has hundreds of saved foods.
+
+- [ ] **L38. The free USDA key has a request limit** (about 1,000 an hour). Searches over the
+  limit show a "busy" message and still return saved foods.
+  - Fix: cache recent searches, or save popular foods locally.
+  - Revisit: only if it is ever hit.
+
+- [ ] **L39. USDA branded foods with unusual serving data** (millilitres, odd units) get no
+  serving shortcut, only grams. Nutrients USDA reports in a form we can't read are left unknown.
+  - Fix: a density table, or Open Food Facts as a second source.
+  - Revisit: M7 phone test.
+

@@ -5,7 +5,7 @@
 
 A nutrition-first calorie and nutrient tracker for iPhone. It tells you what your body needs and why, not just how many calories you ate.
 
-**Status:** v0.1 in progress. Done: backend (health, users, profile, goals), the Expo app, and CI for both. M5 (the onboarding survey and results screen) is merged and M5.1 (better survey checks) is merged and M5.2 (survey check fixes) is in review. Next: M6, foods on the backend.
+**Status:** v0.1 in progress. Done: backend (health, users, profile, goals), the Expo app, and CI for both. M5 (the onboarding survey and results screen) is merged and M5.1 (better survey checks) is merged and M5.2 (survey check fixes) is merged. M6 (foods on the backend: save a food, search saved foods, look up USDA) is in review. Next: M7, the add-food screen on the phone.
 
 ## Stack
 
@@ -57,6 +57,9 @@ Everything under `/api/v1` can be tried from the docs page at http://localhost:8
 | `PUT /api/v1/users/me/profile` | Saves the survey and calculates a new goal. Answers it can't accept come back as `422` with `errors: [{field, message}]` |
 | `GET /api/v1/limits` | The numbers the survey answers are checked against (no login needed), so the app can check as people type |
 | `GET /api/v1/goals/current` | The current calorie and macro targets, with how they were calculated |
+| `POST /api/v1/foods` | Saves a food (typed in, or a USDA result from a search). Nutrients are per 100 g; any left out are *unknown*, not zero |
+| `GET /api/v1/foods/search?q=&page=` | Your saved foods first, then up to 50 USDA results per page (`usda_has_more` says whether `page=2` has more; needs a free `USDA_API_KEY`; without one only saved foods are searched) |
+| `GET /api/v1/foods/{id}` | One saved food |
 
 ## Running the app on your iPhone
 
