@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_food_source
+from app.api.deps import get_food_sources
 from app.integrations.base import FoodCandidate, FoodPage, FoodSourceError, ServingCandidate
 from app.main import app
 from app.models import Food, FoodNutrient, FoodServing
@@ -24,6 +24,7 @@ BAR: dict[str, Any] = {
 
 class FakeSource:
     name = "usda"
+    fallback = False
 
     def __init__(self) -> None:
         self.asked: list[tuple[str, int, int]] = []
@@ -54,7 +55,7 @@ def candidate(source_id: str, name: str) -> FoodCandidate:
 @pytest.fixture
 def usda(client: TestClient) -> Iterator[FakeSource]:
     source = FakeSource()
-    app.dependency_overrides[get_food_source] = lambda: source
+    app.dependency_overrides[get_food_sources] = lambda: [source]
     yield source
 
 
@@ -80,7 +81,10 @@ def test_a_manual_food_is_saved_and_tidied(client: TestClient, auth: dict[str, s
     assert body["name"] == "Peanut Bar"
     assert body["source"] == "manual" and body["source_id"] is None
     assert body["nutrients"]["calories"] == 450.0
-    assert body["servings"] == [{"label": "1 bar", "grams": 68.0}]
+    bar = body["servings"][0]
+    assert (bar["label"], bar["grams"]) == ("1 bar", 68.0)
+    assert bar["nutrients"]["calories"] == 306.0  # 450 kcal per 100 g, in a 68 g bar
+    assert bar["nutrients"]["sodium_mg"] is None  # unknown stays unknown
 
 
 def test_nutrients_left_out_come_back_as_unknown_not_zero(
@@ -230,10 +234,13 @@ def test_search_adds_usda_results_after_the_saved_ones(
     usda.results = [candidate("1", "Apples, raw")]
     found = client.get(f"{BASE}/search", params={"q": "  apple "}, headers=auth).json()
     assert [food["name"] for food in found["saved"]] == ["Apple pie"]
-    assert [food["name"] for food in found["usda"]] == ["Apples, raw"]
-    assert found["usda"][0]["source_id"] == "1"
-    assert found["usda"][0]["servings"] == [{"label": "1 medium (118 g)", "grams": 118.0}]
-    assert found["usda_available"] is True and found["usda_message"] is None
+    assert [food["name"] for food in found["results"]] == ["Apples, raw"]
+    assert found["results"][0]["source_id"] == "1"
+    serving = found["results"][0]["servings"][0]
+    assert (serving["label"], serving["grams"]) == ("1 medium (118 g)", 118.0)
+    # 52 kcal per 100 g, so 118 g holds 61.4: the app never has to do this maths itself.
+    assert serving["nutrients"]["calories"] == 61.4
+    assert found["sources"] == [{"name": "usda", "available": True, "message": None}]
     assert usda.asked == [("apple", 50, 1)]
 
 
@@ -241,7 +248,7 @@ def test_a_usda_result_can_be_saved_straight_from_the_search(
     client: TestClient, auth: dict[str, str], usda: FakeSource
 ) -> None:
     usda.results = [candidate("1", "Apples, raw")]
-    found = client.get(f"{BASE}/search", params={"q": "apple"}, headers=auth).json()["usda"][0]
+    found = client.get(f"{BASE}/search", params={"q": "apple"}, headers=auth).json()["results"][0]
     saved = client.post(BASE, headers=auth, json=found)
     assert saved.status_code == 201
     assert saved.json()["nutrients"]["calories"] == 52.0
@@ -255,7 +262,7 @@ def test_usda_results_already_saved_are_not_listed_twice(
     usda.results = [candidate("1", "Apples, raw"), candidate("2", "Apples, fuji")]
     found = client.get(f"{BASE}/search", params={"q": "apple"}, headers=auth).json()
     assert [food["name"] for food in found["saved"]] == ["Apples, raw"]
-    assert [food["name"] for food in found["usda"]] == ["Apples, fuji"]
+    assert [food["name"] for food in found["results"]] == ["Apples, fuji"]
 
 
 def test_a_usda_failure_still_returns_saved_foods_with_a_message(
@@ -266,17 +273,17 @@ def test_a_usda_failure_still_returns_saved_foods_with_a_message(
     response = client.get(f"{BASE}/search", params={"q": "apple"}, headers=auth)
     assert response.status_code == 200
     body = response.json()
-    assert len(body["saved"]) == 1 and body["usda"] == []
-    assert body["usda_available"] is True
-    assert "busy" in body["usda_message"]
+    assert len(body["saved"]) == 1 and body["results"] == []
+    assert body["sources"][0]["available"] is False
+    assert "busy" in body["sources"][0]["message"]
 
 
 def test_search_works_without_a_usda_key(client: TestClient, auth: dict[str, str]) -> None:
-    app.dependency_overrides[get_food_source] = lambda: None
+    app.dependency_overrides[get_food_sources] = lambda: []
     save(client, auth)
     body = client.get(f"{BASE}/search", params={"q": "peanut"}, headers=auth).json()
     assert len(body["saved"]) == 1
-    assert body["usda_available"] is False and body["usda"] == []
+    assert body["sources"] == [] and body["results"] == []
 
 
 @pytest.mark.parametrize("query", ["", " ", "a", "x" * 101])
@@ -309,14 +316,14 @@ def test_show_more_asks_for_the_next_usda_page_and_skips_saved_foods(
     usda.results = [candidate("1", "Apples, raw")]
     usda.has_more = True
     first = client.get(f"{BASE}/search", params={"q": "apple"}, headers=auth).json()
-    assert first["usda_has_more"] is True and len(first["saved"]) == 1
+    assert first["has_more"] is True and len(first["saved"]) == 1
 
     usda.results = [candidate("2", "Apples, fuji")]
     usda.has_more = False
     second = client.get(f"{BASE}/search", params={"q": "apple", "page": 2}, headers=auth).json()
     assert second["saved"] == []
-    assert [food["name"] for food in second["usda"]] == ["Apples, fuji"]
-    assert second["usda_has_more"] is False
+    assert [food["name"] for food in second["results"]] == ["Apples, fuji"]
+    assert second["has_more"] is False
     assert usda.asked[-1] == ("apple", 50, 2)
 
 
@@ -326,3 +333,181 @@ def test_page_must_be_between_1_and_100(
 ) -> None:
     response = client.get(f"{BASE}/search", params={"q": "apple", "page": page}, headers=auth)
     assert response.status_code == 422
+
+
+class SecondSource(FakeSource):
+    name = "off"
+    fallback = True
+
+
+def candidate_from(
+    source: str, source_id: str, name: str, barcode: str | None, kcal: float
+) -> FoodCandidate:
+    return FoodCandidate(
+        source=source,
+        source_id=source_id,
+        name=name,
+        brand="Clif Bar",
+        barcode=barcode,
+        nutrients={"calories": kcal, "protein_g": None},
+        servings=[ServingCandidate("1 bar (68 g)", 68.0)],
+    )
+
+
+@pytest.fixture
+def two_sources(client: TestClient) -> Iterator[tuple[FakeSource, SecondSource]]:
+    first, second = FakeSource(), SecondSource()
+    app.dependency_overrides[get_food_sources] = lambda: [first, second]
+    yield first, second
+
+
+def test_results_from_every_source_are_ranked_as_one_list(
+    client: TestClient, auth: dict[str, str], two_sources: tuple[FakeSource, SecondSource]
+) -> None:
+    usda, off = two_sources
+    usda.results = [candidate("1", "Peanut Butter, smooth")]
+    off.results = [candidate_from("off", "9", "Energy Bar, Peanut Butter", "0000009", 382.0)]
+    body = client.get(f"{BASE}/search", params={"q": "peanut butter clif bar"}, headers=auth).json()
+    assert [food["name"] for food in body["results"]] == [
+        "Energy Bar, Peanut Butter",
+        "Peanut Butter, smooth",
+    ]
+    assert [item["name"] for item in body["sources"]] == ["usda", "off"]
+
+
+def test_the_same_barcode_from_two_sources_is_listed_once_keeping_the_fuller_one(
+    client: TestClient, auth: dict[str, str], two_sources: tuple[FakeSource, SecondSource]
+) -> None:
+    usda, off = two_sources
+    thin = candidate_from("usda", "1", "Clif Bar Peanut Butter", "0722252100108", 380.0)
+    full = FoodCandidate(
+        **{
+            **thin.__dict__,
+            "source": "off",
+            "source_id": "722252100108",
+            "barcode": "722252100108",
+            "nutrients": {"calories": 382.0, "protein_g": 14.7},
+        }
+    )
+    usda.results, off.results = [thin], [full]
+    body = client.get(f"{BASE}/search", params={"q": "clif bar"}, headers=auth).json()
+    assert len(body["results"]) == 1
+    assert body["results"][0]["source"] == "off"
+
+
+def test_one_source_failing_leaves_the_other_results_and_says_which_failed(
+    client: TestClient, auth: dict[str, str], two_sources: tuple[FakeSource, SecondSource]
+) -> None:
+    usda, off = two_sources
+    usda.error = FoodSourceError("The USDA food database took too long to answer.")
+    off.results = [candidate_from("off", "9", "Clif Bar Peanut Butter", "9", 382.0)]
+    body = client.get(f"{BASE}/search", params={"q": "clif bar"}, headers=auth).json()
+    assert [food["source_id"] for food in body["results"]] == ["9"]
+    assert [(s["name"], s["available"]) for s in body["sources"]] == [
+        ("usda", False),
+        ("off", True),
+    ]
+    assert "too long" in body["sources"][0]["message"]
+
+
+def test_an_open_food_facts_result_can_be_saved_and_is_then_not_offered_again(
+    client: TestClient, auth: dict[str, str], two_sources: tuple[FakeSource, SecondSource]
+) -> None:
+    _, off = two_sources
+    off.results = [candidate_from("off", "9", "Clif Bar Peanut Butter", "9", 382.0)]
+    found = client.get(f"{BASE}/search", params={"q": "clif bar"}, headers=auth).json()
+    saved = client.post(BASE, headers=auth, json=found["results"][0])
+    assert saved.status_code == 201 and saved.json()["source"] == "off"
+    again = client.get(f"{BASE}/search", params={"q": "clif bar"}, headers=auth).json()
+    assert again["results"] == []
+    assert [food["name"] for food in again["saved"]] == ["Clif Bar Peanut Butter"]
+
+
+def test_the_fallback_source_is_skipped_when_the_main_one_found_enough_close_matches(
+    client: TestClient, auth: dict[str, str], two_sources: tuple[FakeSource, SecondSource]
+) -> None:
+    usda, off = two_sources
+    kinds = ["Cavendish", "Plantain", "Red", "Baby", "Dried", "Frozen"]
+    usda.results = [candidate(str(n), f"Banana {kind}") for n, kind in enumerate(kinds)]
+    off.results = [candidate_from("off", "9", "Banana", "9", 89.0)]
+    body = client.get(f"{BASE}/search", params={"q": "banana"}, headers=auth).json()
+    assert off.asked == []
+    assert [item["name"] for item in body["sources"]] == ["usda"]
+    assert len(body["results"]) == 6
+
+
+def test_the_fallback_source_is_asked_when_there_are_few_close_matches(
+    client: TestClient, auth: dict[str, str], two_sources: tuple[FakeSource, SecondSource]
+) -> None:
+    usda, off = two_sources
+    usda.results = [candidate("1", "Banana variety")]
+    off.results = [candidate_from("off", "9", "Banana", "9", 89.0)]
+    client.get(f"{BASE}/search", params={"q": "banana"}, headers=auth)
+    assert off.asked == [("banana", 50, 1)]
+
+
+def test_the_fallback_source_is_never_asked_for_later_pages(
+    client: TestClient, auth: dict[str, str], two_sources: tuple[FakeSource, SecondSource]
+) -> None:
+    _, off = two_sources
+    client.get(f"{BASE}/search", params={"q": "banana", "page": 2}, headers=auth)
+    assert off.asked == []
+
+
+def test_the_same_product_in_several_pack_sizes_is_listed_once(
+    client: TestClient, auth: dict[str, str], usda: FakeSource
+) -> None:
+    def jif(source_id: str, name: str) -> FoodCandidate:
+        return FoodCandidate(
+            "usda",
+            source_id,
+            name,
+            "Jif",
+            None,
+            {"calories": 576.0},
+            [ServingCandidate("2 tbsp (33 g)", 33.0)],
+        )
+
+    usda.results = [
+        jif("1", "JIF 12 OUNCE CREAMY PEANUT BUTTER Each"),
+        jif("2", "JIF 16 OUNCE CREAMY PEANUT BUTTER Each"),
+        jif("3", "JIF 16 OUNCE CRUNCHY PEANUT BUTTER Each"),
+    ]
+    body = client.get(f"{BASE}/search", params={"q": "jif peanut butter"}, headers=auth).json()
+    assert [food["source_id"] for food in body["results"]] == ["1", "3"]
+
+
+def test_results_that_share_no_word_with_the_search_are_left_out(
+    client: TestClient, auth: dict[str, str], usda: FakeSource
+) -> None:
+    usda.results = [candidate("1", "Egg, whole, raw"), candidate("2", "Mayonnaise")]
+    body = client.get(f"{BASE}/search", params={"q": "egg"}, headers=auth).json()
+    assert [food["name"] for food in body["results"]] == ["Egg, whole, raw"]
+
+
+def test_the_fallback_source_is_also_asked_for_a_long_product_style_query(
+    client: TestClient, auth: dict[str, str], two_sources: tuple[FakeSource, SecondSource]
+) -> None:
+    usda, off = two_sources
+    # Plenty of close matches, but a query that names one specific product ("brand + flavour").
+    flavours = ["smooth", "crunchy", "salted", "honey", "dark", "mini", "double", "classic"]
+    usda.results = [
+        candidate(str(n), f"Peanut butter clif bar {kind}") for n, kind in enumerate(flavours)
+    ]
+    off.results = [candidate_from("off", "9", "Crunchy Peanut Butter", "9", 382.0)]
+    body = client.get(f"{BASE}/search", params={"q": "peanut butter clif bar"}, headers=auth).json()
+    assert off.asked == [("peanut butter clif bar", 50, 1)]
+    assert "9" in [food["source_id"] for food in body["results"]]
+
+
+def test_a_plain_food_listed_in_several_usda_datasets_is_shown_once(
+    client: TestClient, auth: dict[str, str], usda: FakeSource
+) -> None:
+    def plain(source_id: str, kcal: float) -> FoodCandidate:
+        return FoodCandidate(
+            "usda", source_id, "Broccoli, raw", None, None, {"calories": kcal}, [], is_generic=True
+        )
+
+    usda.results = [plain("1", 39.0), plain("2", 31.0), plain("3", 34.0)]
+    body = client.get(f"{BASE}/search", params={"q": "broccoli"}, headers=auth).json()
+    assert [food["source_id"] for food in body["results"]] == ["1"]

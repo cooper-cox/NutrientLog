@@ -39,3 +39,22 @@ def sum_nutrients(items: Iterable[NutrientAmounts]) -> dict[str, float | None]:
             else:
                 totals[name] = value if current is None else current + value
     return totals
+
+
+# Calories of protein, carbohydrate and fat per gram (the standard "Atwater" factors).
+_KCAL_PER_G = {"protein_g": 4.0, "carb_g": 4.0, "fat_g": 9.0}
+
+
+def energy_mismatch(per_100g: NutrientAmounts) -> bool:
+    """Do the stated calories disagree badly with what the protein, carbs and fat add up to?
+
+    Food databases hold typing mistakes (calories per serving entered as per 100 g, a missing
+    digit...). This only says "something looks off"; it never changes a value. It needs all four
+    numbers, and allows a wide margin (fibre, alcohol and sugar alcohols really do shift it).
+    """
+    calories = per_100g.get("calories")
+    amounts = [per_100g.get(key) for key in _KCAL_PER_G]
+    if calories is None or any(amount is None for amount in amounts):
+        return False
+    estimate = sum(factor * (per_100g.get(key) or 0.0) for key, factor in _KCAL_PER_G.items())
+    return abs(calories - estimate) > max(40.0, 0.35 * estimate)

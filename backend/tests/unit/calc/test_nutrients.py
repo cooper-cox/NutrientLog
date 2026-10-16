@@ -67,3 +67,23 @@ def test_sum_of_nothing_is_empty() -> None:
 def test_sum_does_not_turn_a_known_zero_into_unknown() -> None:
     totals = sum_nutrients([{"sugar_g": 0.0}, {"sugar_g": None}])
     assert totals["sugar_g"] == 0.0
+
+
+def test_energy_mismatch_flags_calories_that_do_not_fit_the_macros() -> None:
+    from app.calc.nutrients import energy_mismatch
+
+    butter_ok = {"calories": 717.0, "protein_g": 0.9, "fat_g": 81.0, "carb_g": 0.1}
+    butter_typo = {**butter_ok, "calories": 12.0}
+    assert not energy_mismatch(butter_ok)
+    assert energy_mismatch(butter_typo)
+    assert not energy_mismatch({"calories": 0.0, "protein_g": 0.0, "fat_g": 0.0, "carb_g": 0.0})
+    # Alcohol and fibre shift the sum, so a moderate gap is allowed.
+    assert not energy_mismatch({"calories": 150.0, "protein_g": 2.0, "fat_g": 0.0, "carb_g": 30.0})
+
+
+def test_energy_mismatch_needs_all_four_numbers() -> None:
+    from app.calc.nutrients import energy_mismatch
+
+    assert not energy_mismatch({"calories": 12.0, "fat_g": 81.0})
+    assert not energy_mismatch({"calories": 12.0, "protein_g": None, "fat_g": 81.0, "carb_g": 0.0})
+    assert not energy_mismatch({})

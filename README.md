@@ -5,7 +5,7 @@
 
 A nutrition-first calorie and nutrient tracker for iPhone. It tells you what your body needs and why, not just how many calories you ate.
 
-**Status:** v0.1 in progress. Done: backend (health, users, profile, goals), the Expo app, and CI for both. M5 (the onboarding survey and results screen) is merged and M5.1 (better survey checks) is merged and M5.2 (survey check fixes) is merged. M6 (foods on the backend: save a food, search saved foods, look up USDA) is in review. Next: M7, the add-food screen on the phone.
+**Status:** v0.1 in progress. Done: backend (health, users, profile, goals), the Expo app, and CI for both. M5 (the onboarding survey and results screen) is merged and M5.1 (better survey checks) is merged and M5.2 (survey check fixes) is merged. M6 (foods on the backend) is in review, with M6.1 (better food search) following it. Next: M6.2 (any-unit amounts), then M7, the add-food screen on the phone.
 
 ## Stack
 
@@ -58,7 +58,7 @@ Everything under `/api/v1` can be tried from the docs page at http://localhost:8
 | `GET /api/v1/limits` | The numbers the survey answers are checked against (no login needed), so the app can check as people type |
 | `GET /api/v1/goals/current` | The current calorie and macro targets, with how they were calculated |
 | `POST /api/v1/foods` | Saves a food (typed in, or a USDA result from a search). Nutrients are per 100 g; any left out are *unknown*, not zero |
-| `GET /api/v1/foods/search?q=&page=` | Your saved foods first, then up to 50 USDA results per page (`usda_has_more` says whether `page=2` has more; needs a free `USDA_API_KEY`; without one only saved foods are searched) |
+| `GET /api/v1/foods/search?q=&page=` | One search box: your saved foods, then the best matches from USDA (needs a free `USDA_API_KEY`) and Open Food Facts (no key), ranked as one list. Each result carries nutrition for its serving (e.g. `1 bar (68 g)` = 260 kcal). `sources` says which database answered, and `has_more` says whether `page=2` has more |
 | `GET /api/v1/foods/{id}` | One saved food |
 
 ## Running the app on your iPhone
@@ -121,6 +121,8 @@ Changing a table: edit the model in `app/models/`, then run `alembic revision --
 
 - [Project plan](docs/plan.md)
 - [v0.1 build plan](docs/v0.1-build-plan.md)
+- [Engineering rules](docs/engineering-rules.md) (simple code layout, settings in one place, security for a public repo)
+- [Known limitations](docs/known-limitations.md)
 - [v0.1 phone test checklist](docs/checklists/v0.1.md)
 
 ## How versions work
@@ -136,3 +138,17 @@ Then it is tagged in Git (`v0.1`, `v0.2`, ...).
 
 - `main` always works.
 - One short-lived branch per milestone (for example `m1-backend-skeleton`), merged by pull request once CI is green.
+
+## Checking food search against real data
+
+Search quality can only be judged on the real databases. With your USDA key in `.env`:
+
+```
+docker compose run --rm -T api python scripts/search_check.py > search_report.md
+```
+
+This runs about 40 typical searches ("peanut butter clif bar", "banana", "vanilla extract"...) and writes the top results for each, so ranking can be tuned on real results instead of guesses.
+
+It takes a few minutes on purpose: the script waits between searches so the free databases are not rushed. The report starts with a PASS count, lists what any failing database actually said, and marks searches the app cannot answer yet as "known gap" rather than failure. Send `search_report.md` back after a run.
+
+**After changing any code, rebuild first** (`docker compose build api`). The image holds a copy of the code, so a run without a rebuild checks the old version.

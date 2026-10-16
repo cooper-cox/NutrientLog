@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
-from app.api.deps import CurrentUser, get_food_source
+from app.api.deps import CurrentUser, get_food_sources
 from app.core.db import get_session
 from app.integrations.base import FoodSource
 from app.schemas.food import FoodIn, FoodOut, FoodSearchOut
@@ -34,17 +34,18 @@ def create_food(
 def search_foods(
     user: CurrentUser,
     session: SessionDep,
-    source: Annotated[FoodSource | None, Depends(get_food_source)],
+    sources: Annotated[list[FoodSource], Depends(get_food_sources)],
     q: Annotated[str, Query(description="Words to look for, e.g. 'clif bar'")] = "",
     page: Annotated[
         int, Query(ge=1, le=100, description="1 for the first results; 2, 3... for 'show more'")
     ] = 1,
 ) -> FoodSearchOut:
-    """Your saved foods first, then USDA results. A USDA failure never hides the saved results.
+    """Your saved foods, then the best matches from the food databases, in one ranked list.
 
-    If `usda_has_more` is true, ask again with the next `page` for more USDA foods.
+    A database being down never hides the other results. If `has_more` is true, ask again with
+    the next `page` for more.
     """
-    return foods_service.search_foods(session, user, q, source, page)
+    return foods_service.search_foods(session, user, q, sources, page)
 
 
 @router.get("/{food_id}", response_model=FoodOut)

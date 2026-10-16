@@ -128,39 +128,11 @@ def test_a_food_with_no_calories_or_no_name_is_dropped() -> None:
     assert map_food({**BRANDED, "fdcId": None}) is None
 
 
-def client_replying(handler: Any) -> UsdaClient:
+def client_replying(handler: Any, retry_waits: tuple[float, ...] = ()) -> UsdaClient:
     http = httpx.Client(transport=httpx.MockTransport(handler))
-    return UsdaClient("secret-key", base_url="https://example.test/fdc/v1", client=http)
-
-
-def test_search_sends_the_key_as_a_header_not_in_the_address() -> None:
-    seen: list[httpx.Request] = []
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        seen.append(request)
-        return httpx.Response(200, json={"foods": [BRANDED, FOUNDATION, {"fdcId": 1}]})
-
-    found = client_replying(handler).search("clif bar", 10).foods
-    assert [food.source_id for food in found] == ["2345678", "1105073"]
-    assert seen[0].headers["X-Api-Key"] == "secret-key"
-    assert "secret-key" not in str(seen[0].url)
-    assert seen[0].url.params["query"] == "clif bar"
-
-
-def test_search_asks_for_the_requested_page_and_size() -> None:
-    seen: list[httpx.Request] = []
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        seen.append(request)
-        return httpx.Response(200, json={"foods": [], "totalPages": 3})
-
-    client = client_replying(handler)
-    assert client.search("x", 50, page=2).has_more is True
-    assert client.search("x", 50, page=3).has_more is False
-    assert seen[0].url.params["pageSize"] == "50"
-    assert seen[0].url.params["pageNumber"] == "2"
-    client.search("x", 5000)
-    assert seen[2].url.params["pageSize"] == "200"
+    return UsdaClient(
+        "secret-key", base_url="https://example.test/fdc/v1", client=http, retry_waits=retry_waits
+    )
 
 
 def test_without_a_page_count_a_full_page_suggests_there_is_more() -> None:
@@ -221,32 +193,217 @@ def test_a_brand_that_just_repeats_the_name_is_dropped() -> None:
     assert food is not None and food.brand is None
 
 
+def types_of(request: httpx.Request) -> str:
+    return "generic" if "Foundation" in request.url.params["dataType"] else "branded"
+
+
+def test_search_sends_the_key_as_a_header_not_in_the_address() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"foods": [BRANDED, FOUNDATION, {"fdcId": 1}]})
+
+    found = client_replying(handler).search("clif bar", 10).foods
+    assert {food.source_id for food in found} == {"2345678", "1105073"}
+    assert seen[0].headers["X-Api-Key"] == "secret-key"
+    assert all("secret-key" not in str(request.url) for request in seen)
+    assert seen[0].url.params["query"] == "clif bar"
+
+
+def test_plain_foods_and_products_are_searched_separately_and_interleaved() -> None:
+    seen: list[httpx.Request] = []
+    generic = [{**FOUNDATION, "fdcId": n, "dataType": "SR Legacy"} for n in (1, 2, 3)]
+    branded = [{**BRANDED, "fdcId": n, "dataType": "Branded"} for n in (11, 12)]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        foods = generic if types_of(request) == "generic" else branded
+        return httpx.Response(200, json={"foods": foods, "totalPages": 1})
+
+    page = client_replying(handler).search("egg", 50)
+    assert {types_of(request) for request in seen} == {"branded", "generic"}
+    # Taking turns, so a plain food is always near the top: g1, b11, g2, b12, g3
+    assert [food.source_id for food in page.foods] == ["1", "11", "2", "12", "3"]
+    assert [food.is_generic for food in page.foods] == [True, False, True, False, True]
+
+
+def test_only_curated_foods_count_as_plain_foods() -> None:
+    for kind, expected in (
+        ("Foundation", True),
+        ("SR Legacy", True),
+        ("Survey (FNDDS)", True),
+        ("Branded", False),
+    ):
+        food = map_food({**FOUNDATION, "dataType": kind})
+        assert food is not None and food.is_generic is expected
+    unlabelled = map_food(FOUNDATION)
+    assert unlabelled is not None and unlabelled.is_generic is False
+
+
+def test_search_asks_for_the_requested_page_and_size() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"foods": [], "totalPages": 3})
+
+    client = client_replying(handler)
+    assert client.search("x", 50, page=2).has_more is True
+    assert client.search("x", 50, page=3).has_more is False
+    branded = [r for r in seen if types_of(r) == "branded"]
+    assert branded[0].url.params["pageSize"] == "50"
+    assert branded[0].url.params["pageNumber"] == "2"
+    seen.clear()
+    client.search("x", 5000)
+    assert {r.url.params["pageSize"] for r in seen if types_of(r) == "branded"} == {"200"}
+    assert {r.url.params["pageSize"] for r in seen if types_of(r) == "generic"} == {"60"}
+
+
 def test_a_thin_strict_search_is_topped_up_with_partial_matches() -> None:
-    modes: list[str] = []
+    modes: list[tuple[str, str]] = []
     strict_food = {**BRANDED, "fdcId": 1, "description": "PEANUT BUTTER CLIF BAR"}
     loose_only = {**BRANDED, "fdcId": 2, "description": "CLIF BAR, CHOCOLATE"}
 
     def handler(request: httpx.Request) -> httpx.Response:
         mode = request.url.params["requireAllWords"]
-        modes.append(mode)
+        modes.append((types_of(request), mode))
+        if types_of(request) == "generic":
+            return httpx.Response(200, json={"foods": [], "totalPages": 1})
         foods = [strict_food] if mode == "true" else [loose_only, strict_food]
         return httpx.Response(200, json={"foods": foods, "totalPages": 1})
 
     page = client_replying(handler).search("peanut butter clif bar", 50)
-    assert modes == ["true", "false"]
+    assert ("branded", "true") in modes and ("branded", "false") in modes
     assert [food.source_id for food in page.foods] == ["1", "2"]  # strict first, no duplicates
     assert page.has_more is False
 
 
 def test_a_full_strict_search_does_not_need_the_looser_one() -> None:
-    modes: list[str] = []
+    modes: list[tuple[str, str]] = []
     foods = [{**BRANDED, "fdcId": number} for number in range(12)]
 
     def handler(request: httpx.Request) -> httpx.Response:
-        modes.append(request.url.params["requireAllWords"])
+        modes.append((types_of(request), request.url.params["requireAllWords"]))
         return httpx.Response(200, json={"foods": foods, "totalPages": 4})
 
     page = client_replying(handler).search("bar", 50)
-    assert modes == ["true"] and len(page.foods) == 12 and page.has_more is True
+    assert ("branded", "false") not in modes and page.has_more is True
+    modes.clear()
     client_replying(handler).search("bar", 50, page=2)
-    assert modes == ["true", "true"]
+    assert all(mode == "true" for _, mode in modes)
+
+
+def test_one_group_failing_does_not_hide_what_the_other_found() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if types_of(request) == "generic":
+            return httpx.Response(503)
+        return httpx.Response(200, json={"foods": [BRANDED]})
+
+    found = client_replying(handler).search("x", 5).foods
+    assert [food.source_id for food in found] == ["2345678"]
+
+
+def test_both_groups_failing_is_reported_with_the_reply_for_the_developer() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, text="  Bad  request:\n dataType 'x' is not valid  ")
+
+    with pytest.raises(FoodSourceError) as caught:
+        client_replying(handler).search("x", 5)
+    assert caught.value.detail == "HTTP 400: Bad request: dataType 'x' is not valid"
+    assert "secret-key" not in caught.value.detail
+    assert "problem" in str(caught.value)
+
+
+def test_a_long_error_reply_is_cut_short() -> None:
+    client = client_replying(lambda request: httpx.Response(500, text="x" * 5000))
+    with pytest.raises(FoodSourceError) as caught:
+        client.search("x", 5)
+    assert len(caught.value.detail) < 230
+
+
+def test_a_passing_error_is_asked_again_and_a_400_drops_the_survey_data_type() -> None:
+    seen: list[str] = []
+    codes = iter([400, 200])
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if types_of(request) == "branded":
+            return httpx.Response(200, json={"foods": []})
+        seen.append(request.url.params["dataType"])
+        code = next(codes)
+        return httpx.Response(code, json={"foods": [FOUNDATION]} if code == 200 else {})
+
+    found = client_replying(handler, retry_waits=(0.0,)).search("x", 1).foods
+    assert [food.source_id for food in found] == ["1105073"]
+    assert "Survey" in seen[0] and "Survey" not in seen[1]
+
+
+def test_it_gives_up_after_the_last_retry() -> None:
+    calls: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return httpx.Response(503)
+
+    with pytest.raises(FoodSourceError):
+        client_replying(handler, retry_waits=(0.0, 0.0)).search("x", 5)
+    assert len(calls) == 6  # two groups, each asked three times
+
+
+def test_a_refused_key_is_not_retried() -> None:
+    calls: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return httpx.Response(403)
+
+    with pytest.raises(FoodSourceError, match="refused"):
+        client_replying(handler, retry_waits=(0.0, 0.0)).search("x", 5)
+    assert len(calls) == 2
+
+
+ONCE = "CLIF BAR, CLIF KIT'S ORGANIC, FRUIT + NUT BAR, PEANUT BUTTER"
+
+
+def test_a_name_repeated_by_usda_is_shown_once() -> None:
+    raw = {
+        **BRANDED,
+        "description": f"{ONCE}, {ONCE}",
+    }
+    food = map_food(raw)
+    assert food is not None
+    assert food.name == "Clif Bar, Clif Kit's Organic, Fruit + Nut Bar, Peanut Butter"
+    legitimate = map_food({**BRANDED, "description": "Rice, white, long-grain, cooked"})
+    assert legitimate is not None and legitimate.name == "Rice, white, long-grain, cooked"
+
+
+@pytest.mark.parametrize(
+    ("household", "grams", "label"),
+    [
+        ("1 ONZ", 28.0, "1 oz (28 g)"),
+        ("3/4 cup (20g) (age 1-3 years)", 20.0, "3/4 cup (20 g)"),
+        ("1 bar (40g)", 40.0, "1 bar (40 g)"),
+        ("0.667 CUP | ABOUT", 30.0, "0.667 cup (30 g)"),
+        ("1 BAR", 68.0, "1 bar (68 g)"),
+        ("15 GRM", 15.0, "15 g (15 g)"),
+        ("", 30.0, "1 serving (30 g)"),
+    ],
+)
+def test_serving_labels_are_tidied(household: str, grams: float, label: str) -> None:
+    food = map_food(
+        {
+            **BRANDED,
+            "servingSize": grams,
+            "servingSizeUnit": "g",
+            "householdServingFullText": household,
+        }
+    )
+    assert food is not None and food.servings[0].label == label
+
+
+def test_an_error_web_page_is_reduced_to_its_title() -> None:
+    page = "<!DOCTYPE html><html><head><title> Page  unavailable </title></head><body>x</body>"
+    client = client_replying(lambda request: httpx.Response(503, text=page))
+    with pytest.raises(FoodSourceError) as caught:
+        client.search("x", 5)
+    assert caught.value.detail == "HTTP 503: Page unavailable"
