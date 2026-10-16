@@ -4,21 +4,48 @@ from sqlalchemy.orm import Session
 
 from app.calc.calorie_target import InvalidInputError, Problem
 from app.calc.food_check import check_food, clean_text
+from app.calc.food_rank import Rankable, duplicate_key, full_matches, rank, words
 from app.calc.nutrient_catalog import KEYS
-from app.integrations.base import FoodCandidate, FoodSource, FoodSourceError
+from app.calc.nutrients import energy_mismatch, scale_nutrients
+from app.integrations.base import FoodCandidate, FoodPage, FoodSource, FoodSourceError
 from app.models import Food, FoodNutrient, FoodServing, User
 from app.repositories import foods as foods_repo
-from app.schemas.food import FoodCandidateOut, FoodIn, FoodOut, FoodSearchOut, ServingOut
+from app.schemas.food import (
+    FoodCandidateOut,
+    FoodIn,
+    FoodOut,
+    FoodSearchOut,
+    ServingOut,
+    SourceStatus,
+)
 
 SAVED_LIMIT = 25
-USDA_LIMIT = 50
+SOURCE_LIMIT = 50  # per outside database, per page
+# Fewer close matches than this from the main databases: also ask the fallback database.
+ENOUGH_FULL_MATCHES = 5
+# A long query ("peanut butter clif bar") names one specific product, which the community
+# database often has when USDA lists only lookalikes, so the fallback is asked for those too.
+LONG_QUERY_WORDS = 3
 MIN_QUERY_LENGTH = 2
 MAX_QUERY_LENGTH = 100
+
+
+def serving_out(label: str, grams: float, per_100g: dict[str, float | None]) -> ServingOut:
+    """A serving with what it contains, so the app never has to do nutrition maths."""
+    scaled = scale_nutrients(per_100g, grams)
+    return ServingOut(
+        label=label,
+        grams=grams,
+        nutrients={
+            key: None if value is None else round(value, 1) for key, value in scaled.items()
+        },
+    )
 
 
 def food_out(food: Food) -> FoodOut:
     """The food as the API returns it: every tracked nutrient present, unknown ones as null."""
     known = {row.nutrient_key: row.amount_per_100g for row in food.nutrients}
+    per_100g = {key: known.get(key) for key in KEYS}
     return FoodOut(
         id=food.id,
         name=food.name,
@@ -28,8 +55,8 @@ def food_out(food: Food) -> FoodOut:
         source_id=food.source_id,
         is_estimated=food.is_estimated,
         kind=food.kind,
-        nutrients={key: known.get(key) for key in KEYS},
-        servings=[ServingOut(label=s.label, grams=s.grams) for s in food.servings],
+        nutrients=per_100g,
+        servings=[serving_out(s.label, s.grams, per_100g) for s in food.servings],
         created_at=food.created_at,
     )
 
@@ -42,7 +69,7 @@ def candidate_out(candidate: FoodCandidate) -> FoodCandidateOut:
         brand=candidate.brand,
         barcode=candidate.barcode,
         nutrients=candidate.nutrients,
-        servings=[ServingOut(label=s.label, grams=s.grams) for s in candidate.servings],
+        servings=[serving_out(s.label, s.grams, candidate.nutrients) for s in candidate.servings],
     )
 
 
@@ -96,12 +123,133 @@ def get_food(session: Session, user: User, food_id: uuid.UUID) -> Food | None:
     return foods_repo.get_for_user(session, user.id, food_id)
 
 
-def search_foods(
-    session: Session, user: User, query: str, source: FoodSource | None, page: int = 1
-) -> FoodSearchOut:
-    """The user's saved foods first, then more from USDA (if it is switched on and answering).
+def _barcode_key(candidate: FoodCandidate) -> str | None:
+    """A barcode with leading zeros removed (UPC-A and EAN-13 write the same code differently)."""
+    digits = (candidate.barcode or "").strip().lstrip("0")
+    return digits or None
 
-    Page 1 has both. Later pages ("show more") only add further USDA results.
+
+def _known(candidate: FoodCandidate) -> int:
+    return sum(value is not None for value in candidate.nutrients.values())
+
+
+def merge_duplicates(candidates: list[FoodCandidate]) -> list[FoodCandidate]:
+    """The same product from two databases (same barcode) appears once: the one with more data.
+
+    Order is kept (the surviving copy sits where its first copy was).
+    """
+    best: dict[str, FoodCandidate] = {}
+    for candidate in candidates:
+        key = _barcode_key(candidate)
+        if key is not None and (key not in best or _known(candidate) > _known(best[key])):
+            best[key] = candidate
+    merged: list[FoodCandidate] = []
+    placed: set[str] = set()
+    for candidate in candidates:
+        key = _barcode_key(candidate)
+        if key is None:
+            merged.append(candidate)
+        elif key not in placed:
+            placed.add(key)
+            merged.append(best[key])
+    return merged
+
+
+def collapse_lookalikes(candidates: list[FoodCandidate]) -> list[FoodCandidate]:
+    """Keep the first of results that are the same product listed more than once.
+
+    The database holds one record per package size ("12 OUNCE", "28 Ounce") with identical
+    nutrition; showing all of them would fill the screen with the same food. A plain food
+    with the same name in several USDA datasets is also shown once (the first one listed).
+    """
+    seen: set[object] = set()
+    kept: list[FoodCandidate] = []
+    for candidate in candidates:
+        serving = candidate.servings[0].grams if candidate.servings else None
+        key: object = duplicate_key(
+            candidate.name, candidate.brand, candidate.nutrients.get("calories"), serving
+        )
+        if candidate.is_generic:
+            # USDA's separate datasets each list "Broccoli, raw" with slightly different numbers.
+            key = ("plain food", candidate.name.lower())
+        if key not in seen:
+            seen.add(key)
+            kept.append(candidate)
+    return kept
+
+
+def _ask_all(
+    sources: list[FoodSource], text: str, page: int, statuses: list[SourceStatus]
+) -> tuple[list[tuple[FoodCandidate, int]], bool]:
+    """Ask each source in turn; one that fails is reported and the others carry on."""
+    pairs: list[tuple[FoodCandidate, int]] = []
+    has_more = False
+    for source in sources:
+        try:
+            result: FoodPage = source.search(text, SOURCE_LIMIT, page)
+        except FoodSourceError as error:
+            statuses.append(SourceStatus(name=source.name, available=False, message=str(error)))
+            continue
+        statuses.append(SourceStatus(name=source.name, available=True))
+        pairs.extend((food, position) for position, food in enumerate(result.foods))
+        has_more = has_more or result.has_more
+    return pairs, has_more
+
+
+def _order(text: str, pairs: list[tuple[FoodCandidate, int]]) -> list[FoodCandidate]:
+    """Merge the same barcode and the same product, then rank everything as one list."""
+    position = {id(candidate): place for candidate, place in pairs}
+    unique = collapse_lookalikes(merge_duplicates([candidate for candidate, _ in pairs]))
+    items = [
+        Rankable(
+            c.name,
+            c.brand,
+            bool(c.servings),
+            position[id(c)],
+            is_generic=c.is_generic,
+            energy_mismatch=energy_mismatch(c.nutrients),
+        )
+        for c in unique
+    ]
+    return [unique[index] for index in rank(text, items)]
+
+
+def gather_and_rank(
+    text: str, sources: list[FoodSource], page: int = 1
+) -> tuple[list[FoodCandidate], list[SourceStatus], bool]:
+    """Ask the databases, merge duplicates, and order everything as one list (best first).
+
+    The main databases are asked first. A fallback database (slower, limits how often it can be
+    asked) is only added on the first page, and only when fewer than ENOUGH_FULL_MATCHES results
+    contain every typed word, or the query is long enough to name one specific product.
+    Needs no database of our own, so the real-data check script can use it too.
+    """
+    statuses: list[SourceStatus] = []
+    pairs, has_more = _ask_all([s for s in sources if not s.fallback], text, page, statuses)
+    ranked = _order(text, pairs)
+
+    fallbacks = [source for source in sources if source.fallback]
+    thin = (
+        full_matches_in(text, ranked) < ENOUGH_FULL_MATCHES or len(words(text)) >= LONG_QUERY_WORDS
+    )
+    if page == 1 and fallbacks and thin:
+        more, more_has = _ask_all(fallbacks, text, page, statuses)
+        pairs = pairs + more
+        ranked = _order(text, pairs)
+        has_more = has_more or more_has
+    return ranked, statuses, has_more
+
+
+def full_matches_in(text: str, ranked: list[FoodCandidate]) -> int:
+    return full_matches(text, [Rankable(c.name, c.brand, False, 0) for c in ranked])
+
+
+def search_foods(
+    session: Session, user: User, query: str, sources: list[FoodSource], page: int = 1
+) -> FoodSearchOut:
+    """The user's saved foods, then the best matches from every outside database, ranked as one.
+
+    Page 1 has both. Later pages ("show more") only add further outside results.
     """
     words = query.split()
     text = " ".join(words)
@@ -115,18 +263,14 @@ def search_foods(
         if page == 1
         else []
     )
-    if source is None:
-        return FoodSearchOut(saved=saved, usda=[], usda_available=False)
-
-    try:
-        found = source.search(text, USDA_LIMIT, page)
-    except FoodSourceError as error:
-        return FoodSearchOut(saved=saved, usda=[], usda_available=True, usda_message=str(error))
-    already = foods_repo.saved_source_ids(session, user.id, source.name)
-    fresh = [candidate for candidate in found.foods if candidate.source_id not in already]
-    return FoodSearchOut(
-        saved=saved,
-        usda=[candidate_out(candidate) for candidate in fresh],
-        usda_available=True,
-        usda_has_more=found.has_more,
-    )
+    ranked, statuses, has_more = gather_and_rank(text, sources, page)
+    already = {
+        source.name: foods_repo.saved_source_ids(session, user.id, source.name)
+        for source in sources
+    }
+    results = [
+        candidate_out(candidate)
+        for candidate in ranked
+        if candidate.source_id not in already.get(candidate.source, set())
+    ]
+    return FoodSearchOut(saved=saved, results=results, sources=statuses, has_more=has_more)

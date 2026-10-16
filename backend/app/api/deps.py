@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.db import get_session
 from app.integrations.base import FoodSource
+from app.integrations.openfoodfacts import OpenFoodFactsClient
 from app.integrations.usda import UsdaClient
 from app.models import User
 from app.services import users as users_service
@@ -43,8 +44,16 @@ def _usda_client(api_key: str) -> UsdaClient:
     return UsdaClient(api_key)
 
 
-def get_food_source() -> FoodSource | None:
-    """The outside food database, or None when no USDA key is set (the lookup is then off)."""
-    if not settings.usda_api_key:
-        return None
-    return _usda_client(settings.usda_api_key)
+@lru_cache
+def _off_client() -> OpenFoodFactsClient:
+    return OpenFoodFactsClient(country=settings.open_food_facts_country)
+
+
+def get_food_sources() -> list[FoodSource]:
+    """The outside food databases that are switched on (USDA needs a key; the other does not)."""
+    sources: list[FoodSource] = []
+    if settings.usda_api_key:
+        sources.append(_usda_client(settings.usda_api_key))
+    if settings.open_food_facts:
+        sources.append(_off_client())
+    return sources

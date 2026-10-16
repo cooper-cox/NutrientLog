@@ -8,7 +8,7 @@ their group.
 could ride along with another milestone. *Before others* means it must be fixed before anyone but
 the author uses the app.
 
-Last reviewed after: M6 (foods backend).
+Last reviewed after: M6.1 follow-up 4 (food search quality).
 
 ---
 
@@ -312,4 +312,54 @@ their job. Today's survey is a deliberately simple first version. These items, t
   serving shortcut, only grams. Nutrients USDA reports in a form we can't read are left unknown.
   - Fix: a density table, or Open Food Facts as a second source.
   - Revisit: M7 phone test.
+
+- [ ] **L40. Search results show nutrition per 100 g only**, which makes a 260-calorie bar look like 382. 
+  - Fix: done in M6.1 (each serving carries its own nutrition); M7 shows it first. Foods with
+    no serving still show per 100 g until M6.2 adds measures.
+  - Revisit: M6.2.
+
+- [ ] **L41. Only grams, ounces (weight) and named servings convert today.** Cups, spoons and millilitres need each food's density.
+  - Fix: M6.2 (plan section 15.3).
+  - Revisit: M6.2.
+
+- [ ] **L42. Open Food Facts data is community-made**, so quality varies (typos, wrong serving
+  sizes, calories per serving typed as per 100 g). The first report showed it works when asked
+  gently; it failed when asked too fast. It is now a fallback source, limited to US products.
+  - Fix: the calorie cross-check ranks suspicious entries lower; a "report a wrong food" button
+    and per-food corrections come later.
+  - Update (third report): Open Food Facts itself was unavailable ("Page temporarily unavailable",
+    HTTP 503) for about 8 of 17 searches asked. Searches then show only USDA results, and the
+    exact packaged product (for example the 68 g Clif Crunchy Peanut Butter bar) can be missing.
+    It is now retried twice and then left alone for 60 seconds. A saved copy of earlier answers
+    would help, and so would saving a food you pick (see L36 and L38).
+  - Revisit: after the next search report.
+
+- [ ] **L43. The ranking weights are first guesses.** They are tested on made-up examples
+  (`test_food_rank.py`), not yet on real results.
+  - Fix: tune from the real search report, then keep the 40 searches as a regression check.
+  - Revisit: M6.1 testing.
+
+- [ ] **L44. Searches ask up to three services per typed phrase** (USDA twice when it finds few
+  matches, plus Open Food Facts), so a search can take a second or two, and Open Food Facts
+  limits heavy use.
+  - Fix: cache recent searches; search as the person pauses typing rather than on every key.
+  - Revisit: M7 phone test.
+
+- [ ] **L45. Plain foods have no named serving yet.** "Bananas, raw" shows only per 100 g
+  because USDA keeps portions such as "1 medium (118 g)" in a separate record.
+  - Fix: M6.2 reads those portions (and derives density for cups and spoons).
+  - Revisit: M6.2.
+
+- [ ] **L46. Misspellings are only partly handled.** Half-typed words ("banan") and one-letter
+  typos ("chiken") are matched when the database returns the food at all, but USDA does not
+  tolerate typos itself, so a badly misspelt word can find nothing.
+  - Fix: a spelling-suggestion step (a word list built from foods seen), or a search service that
+    tolerates typos.
+  - Revisit: M7 phone test.
+
+- [ ] **L47. Among many similar branded foods the "most popular" one cannot be known.** Typing
+  "oreo" lists Oreo cheesecake and muffins ahead of the cookie, because nothing says which
+  people actually eat.
+  - Fix: your own recents and favourites first (planned), then Open Food Facts' scan counts.
+  - Revisit: M7 (recents).
 

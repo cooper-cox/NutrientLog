@@ -1,7 +1,7 @@
-# NutrientLog: Project Plan (Draft 4)
+# NutrientLog: Project Plan (Draft 6)
 
 Working name: **NutrientLog** (placeholder, can change anytime).
-Status: planning only. No code until this plan is agreed.
+Status: building (see `v0.1-build-plan.md`). Draft 6 replaces the layered-backend rule with simpler ones, adds a v0.9 security-hardening version, and points to `engineering-rules.md`, which is the rulebook for simplicity, configuration and security. Where that file and this one disagree, the rules file wins.
 
 ## 1. Vision
 
@@ -32,6 +32,7 @@ A nutrition-first tracker that tells users what their body needs and why, not ju
 | Cost | Free tiers only, always (see section 10) |
 | Workout calories | "Eat back" ON by default, with a settings toggle so I can test both |
 | Recipe builder | v0.2 |
+| Repository | Public on GitHub. Nothing that grants access is ever committed (see `engineering-rules.md`, section 3). |
 
 ## 3. Core concepts
 
@@ -51,15 +52,22 @@ A version is not finished, and the next one does not start, until **both** pass:
 Then the version is tagged in Git (v0.1, v0.2, ...).
 
 ### Scalability rules (built in from v0.1)
-- **Layered backend:** routes (HTTP) → services (business logic) → repositories (database). Logic never lives in a route handler.
+- **Simple backend, one real boundary.** Routes handle HTTP and the database queries next to them. Calculations are pure functions with no database or network calls, kept separate so they are easy to test. Logic never hides in a route handler once it grows past a few lines: it moves to a pure function. (The earlier "routes → services → repositories" rule was retired after the M6.1 review: it spread simple features across five files. See `engineering-rules.md`, section 1.)
 - **Versioned API** (`/api/v1/...`) so the app and server can change independently.
 - **Database migrations from day one** (Alembic). The schema only changes through migrations.
 - **Data-driven nutrients:** nutrients live in a table, not in code. Adding "iron" or "added sugars" later means adding rows plus a little UI config, not rewriting screens.
 - **Data-driven game content:** monsters and activities are tables or config files too.
-- **Feature modules in the app:** each feature (food, nutrition, weight, fitness, quest, settings) is its own folder with its own screens, API calls, and state. Adding a feature means adding a folder.
+- **Feature modules in the app:** each feature (food, nutrition, weight, fitness, quest, settings) is its own folder with its own screen, logic and tests, usually three to four files. Adding a feature means adding a folder.
 - **One place for each shared thing:** unit conversion, date/timezone handling, and the AI call each live in a single module.
 - **Pure functions for calculations** (calorie target, MET calories, totals, unit conversion) so they are easy to unit test.
 - **Settings and feature flags** stored per user, so toggles (eat back, units, quest on/off) are cheap to add.
+- **No speculative layers.** A layer, interface or folder is added when a second real use appears, not for a future that may not come.
+
+### Simplicity, configuration and security (rulebook: `engineering-rules.md`)
+- **Simplicity:** one file per topic, shallow folders, tests mirror the code, a "where things live" map in the README, and every pull request says how many files it added or removed and why.
+- **Configuration has three homes:** secrets in `.env` (never committed); tunable numbers (search weights, limits, page sizes, retry waits, quest values) in a committed, validated `backend/config.toml`; formulas and science constants in code, next to the formula.
+- **Security for a public repo:** nothing that grants access is ever committed; no default passwords in committed files; ports kept closed; GitHub secret scanning, Dependabot and CodeQL turned on; a secret scan and a Compose smoke test in CI; every user-data endpoint filters by the signed-in user and has a test that another user cannot read it; every input has limits; a short security check in every pull request.
+- **Hard gate:** v0.9 (Hardening) must be finished before v1.0, and so before anyone but the author uses the app.
 
 ## 5. Design principles
 
@@ -134,7 +142,7 @@ A "heroic journey" that rewards logging and hitting your goal.
   2. **Goal roll:** earned by completing the daily calorie goal, which depends on the user's goal type (see below).
 - Each roll's result is damage dealt to the current monster.
 - Monsters have HP, and tougher ones take multiple days: slime → goblin → orc → ... → dragon. The monster list is data-driven, so adding monsters is easy.
-- **HP system:** the player has HP. A missed day (no food logged) costs HP, and the player is only defeated at 0 HP, which restarts the journey from the beginning. Starting HP, damage per missed day, and whether tougher monsters hit harder are config values we tune during v0.6, not hardcoded.
+- **HP system:** the player has HP. A missed day (no food logged) costs HP, and the player is only defeated at 0 HP, which restarts the journey from the beginning. Starting HP, damage per missed day, and whether tougher monsters hit harder are config values we tune during v0.6, not hardcoded (they live in `config.toml`).
 - Dice rolls and monster state are decided and stored on the backend so they can't drift or be exploited, and the app just displays them.
 - Tied to notifications: "the goblin is waiting" fits inside the 4-per-day cap.
 
@@ -195,7 +203,7 @@ Local development uses Docker Compose (API + Postgres). Hosting comes later, on 
 
 ## 9. Version roadmap
 
-Every version must pass the version gate in section 4 before the next begins.
+Every version must pass the version gate in section 4 before the next begins. Every version's pull requests follow `engineering-rules.md` (simplicity, configuration, security).
 
 **v0.1: Prototype (minimal)**
 - Onboarding (age, sex, height, weight, activity, goal) to calorie target
@@ -205,6 +213,7 @@ Every version must pass the version gate in section 4 before the next begins.
 - Anonymous user, data in Postgres
 - Docker Compose, GitHub Actions (lint, type-check, tests, build)
 - Tests for the goal calculator and unit conversions
+- Includes the M6.R cleanup (simpler layout, `config.toml`, security basics) before the add-food screen
 
 **v0.2: Daily use**
 - Edit and delete entries (swipe, undo), saved foods and recents
@@ -242,10 +251,19 @@ Every version must pass the version gate in section 4 before the next begins.
 - Quest art and visual feedback
 - Consistency review across all screens and screen sizes
 
+**v0.9: Hardening (new; hard gate before anyone else uses the app)**
+- HTTPS hosting on a free tier; secrets in the host's secret store
+- Real accounts with expiring, revocable tokens (L10, L11)
+- Rate limiting and abuse protection (L13)
+- Export and delete my data, privacy policy (L14)
+- Migrations as a separate deploy step (L21); fixed server address (L22)
+- Medical screening question (L2); review of body-size limits (L29)
+- A security review of every endpoint against `engineering-rules.md`, section 3
+
 **v1.0+: Other people**
-- Real accounts, cloud backup
+- Cloud backup
 - Android and tablet layouts
-- Hosting, privacy policy, App Store release
+- App Store release
 
 ## 10. Free-tier plan
 
@@ -256,6 +274,7 @@ Every version must pass the version gate in section 4 before the next begins.
 | AI | A free-tier model API (e.g. Gemini Flash-tier) | Free limits and model names change, so we'll check current ones when we get to v0.5 |
 | Database and hosting (later) | Postgres in Docker locally; free tiers (e.g. Supabase, Neon) for hosting | Free tiers can pause or limit storage |
 | CI | GitHub Actions (free for public repos, with a monthly allowance for private ones) | Keep workflows lean |
+| Code security | GitHub secret scanning, push protection, Dependabot and CodeQL are free on public repos; gitleaks is free | Keep the alerts turned on and read them |
 | Notifications | Local scheduled notifications need no server | We'll verify what Expo Go supports when we reach v0.6 and v0.7 |
 
 ## 11. Learning goals map
@@ -263,14 +282,14 @@ Every version must pass the version gate in section 4 before the next begins.
 | Goal | Where it shows up |
 |---|---|
 | Databases | Postgres schema, migrations, daily and range totals, saved-food lookups |
-| GitHub Actions | Lint, type-check, tests, Docker build on every push; Postgres service container for integration tests |
+| GitHub Actions | Lint, type-check, tests, Docker build on every push; Postgres service container for integration tests; secret scan, CodeQL, Compose smoke test |
 | Containers | Docker Compose for API + DB |
 | Version control | Feature branches and PRs, version tags, a green CI as the merge rule |
 
 ## 12. iPhone testing notes
 
 - **Expo Go** (free): install from the App Store, scan a QR code, and the app runs live on the iPhone 11 over the same Wi-Fi. This is the plan for prototyping.
-- The backend runs on my computer during early development, and the phone reaches it over local Wi-Fi.
+- The backend runs on my computer during early development, and the phone reaches it over local Wi-Fi (only while testing; not on public Wi-Fi).
 
 ## 13. Remaining questions
 
@@ -314,3 +333,31 @@ before other people use them.
 
 **Design rule.** Every new survey question must change something the person can see in their
 targets, and the results screen must explain why, in plain words.
+
+## 15. Finding foods and measuring amounts (from the M6 phone-free test)
+
+**The promise:** a new user types what they ate in one box ("banana", "peanut butter clif bar"), taps the right result, picks an amount in whatever unit they think in ("1 bar", "1/2 cup", "1 oz", "a medium bowl"), and gets correct nutrition. No second search box, no maths. This is the make-or-break of the whole app, so it gets its own milestones before the phone screen (see the build plan).
+
+### 15.1 What the M6 test showed
+- Nutrition from USDA is per 100 g. A 68 g bar of 260 kcal is 382 kcal per 100 g. The data was right; the display was misleading. Every result must lead with **per serving** (or per the amount the person chose), with per 100 g as detail.
+- A plain name search is not enough. Clif has dozens of flavours, USDA names are inconsistent ("ENERGY BAR, PEANUT BUTTER" with Clif only in the brand field), and some products are missing. A match on the typed words must be **ranked**, not just filtered.
+
+### 15.2 Search: one box, ranked by us
+1. **Search several places, rank in our own code.** USDA first (generic foods and branded products), Open Food Facts added as a second source (more brands, barcodes). Each source returns candidates; one scoring function orders them. Sources stay behind the `FoodSource` interface.
+2. **Scoring (all plain, tested code):** every typed word found in the name *or brand* counts (brand words are matched too, so "clif" finds the Clif brand even when the name lacks it); an exact or near-exact name beats a partial one; a short generic query ("banana", "flour") prefers plain whole foods over branded products that merely contain the word; a query with a brand word prefers that brand; foods the person already saved or eats often rank first (recents/favourites); results without calories or a usable serving rank last. The weights live in `config.toml`.
+3. **Measure it, don't guess.** Before changing the ranking, run a fixed list of about 40 real searches (common foods, brand products, misspellings, odd word orders, e.g. "peanut butter clif bar", "clif bar peanut butter", "banana", "all purpose flour", "vanilla extract") against the live services and look at the top five for each. A small script (`backend/scripts/search_check.py`) does this on the developer's computer with their own key and writes a report; that report decides the scoring weights. The same list is kept as a regression check.
+4. **Forgiveness:** ignore case, punctuation and word order; later, light spelling tolerance.
+5. **Failsafes** (not the main path): barcode scan (USDA keeps the barcode on branded foods; Open Food Facts too) and fast manual entry from a label.
+
+### 15.3 Amounts: any unit, converted behind the scenes
+- **Everything is grams internally** (already true). The person chooses an amount *and* a unit; the server turns it into grams.
+- **Weight units (g, oz, lb, kg)** convert exactly, for any food.
+- **Volume units (ml, l, tsp, tbsp, fl oz, cup)** need the food's *density* (a cup of flour weighs about 125 g, a cup of water 237 g). We get it, best first, from: (a) the food's own measures in USDA's detailed record (e.g. "1 cup = 125 g"), (b) a density worked out from any one volume measure the food has, which then converts every other volume unit, (c) for liquids with no data, water's density, shown as an **estimate**. If nothing is known we say so rather than guess silently.
+- **"oz" is ambiguous** (weight vs fluid). The picker offers them as separate, clearly named units: "oz (weight)" and "fl oz (liquid)".
+- **Named measures** are real choices in the picker: the product's own serving ("1 bar (68 g)"), "1 slice", "1 medium", plus house measures such as "small bowl = 4 fl oz", "medium bowl = 8 fl oz" (these are volumes, so they use the food's density). Person-defined measures ("my mug = 350 ml") can come later.
+- **Fractions** ("1/2 cup", "1 1/2") are accepted when typing.
+- **Per-serving nutrition** is returned by the server for every named measure, so the phone never does nutrition maths.
+- **Recipes** (a food built from ingredients, each in its own unit) reuse exactly this conversion, which is why it is built before the phone screen.
+
+### 15.4 What we cannot promise
+Food databases contain mistakes, gaps and old labels. The app will show where a food came from, label estimates as estimates, and always let the person correct a food or add their own. A food with no density cannot be converted from cups with confidence; we say so.

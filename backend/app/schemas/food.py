@@ -13,6 +13,8 @@ class ServingIn(BaseModel):
 class ServingOut(BaseModel):
     label: str
     grams: float
+    # What this serving contains (the food's per-100 g values scaled to `grams`); null = unknown.
+    nutrients: dict[str, float | None] = Field(default_factory=dict)
 
 
 class FoodIn(BaseModel):
@@ -23,8 +25,8 @@ class FoodIn(BaseModel):
     barcode: str | None = Field(default=None, max_length=32)
     nutrients: dict[str, float | None] = Field(default_factory=dict)
     servings: list[ServingIn] = Field(default_factory=list)
-    # "usda" when saving a search result (source_id is then USDA's id).
-    source: Literal["manual", "usda"] = "manual"
+    # "usda" or "off" (Open Food Facts) when saving a search result; source_id is then its id.
+    source: Literal["manual", "usda", "off"] = "manual"
     source_id: str | None = Field(default=None, max_length=64)
 
 
@@ -55,12 +57,21 @@ class FoodCandidateOut(BaseModel):
     servings: list[ServingOut]
 
 
+class SourceStatus(BaseModel):
+    """How one outside food database did for this search."""
+
+    name: str
+    available: bool
+    # A plain sentence if it failed (the other results are still good).
+    message: str | None = None
+
+
 class FoodSearchOut(BaseModel):
+    # The person's own saved foods that match (first page only).
     saved: list[FoodOut]
-    # More foods from USDA, minus any already saved. Empty if the lookup is off or failed.
-    usda: list[FoodCandidateOut]
-    usda_available: bool
-    # True if asking for the next page (page=2, ...) may find more USDA foods.
-    usda_has_more: bool = False
-    # A plain sentence if the USDA lookup failed (the saved results are still good).
-    usda_message: str | None = None
+    # Foods from the outside databases, best match first, with duplicates merged. Not saved yet:
+    # save one with POST /foods.
+    results: list[FoodCandidateOut]
+    sources: list[SourceStatus]
+    # True if asking for the next `page` may find more results.
+    has_more: bool = False
