@@ -79,7 +79,7 @@ The repo is public. Code being visible is fine: security must never depend on th
 
 **X3. Keep ports closed.** The database port stays bound to `127.0.0.1`. The API is reachable on the local network only while testing. Stop the containers when done, and do not test on public Wi-Fi.
 
-**X4. Turn on GitHub's free protections** (public repos get them free): secret scanning with push protection, Dependabot alerts and updates, and CodeQL code scanning. Add a secret-scan step (gitleaks) to CI so a leaked key fails the build.
+**X4. Turn on GitHub's free protections** (public repos get them free): secret scanning with push protection, Dependabot alerts (alerts only, no automatic update pull requests), and CodeQL code scanning. Add a secret-scan step (gitleaks) to CI so a leaked key fails the build.
 
 **X5. Logs and errors never contain secrets.** Keys go in headers, never URLs. Error details kept for developers (such as `FoodSourceError.detail`) never include keys, tokens or personal data.
 
@@ -87,7 +87,7 @@ The repo is public. Code being visible is fine: security must never depend on th
 
 **X7. Every input has limits.** Text lengths, page numbers, list sizes and numeric ranges are validated at the edge, and returned errors say what is wrong without exposing internals.
 
-**X8. Dependencies are kept few and current.** Adding one needs a reason in the pull request. Dependabot keeps them updated.
+**X8. Dependencies are kept few and current.** Adding one needs a reason in the pull request. Updates are done by hand now and then; Dependabot alerts say when one is urgent.
 
 **X9. Per-milestone security check.** Each pull request answers: does this add an endpoint (who may call it, what is validated)? does it store anything new about a person? does it log or return anything sensitive? Any "yes" is written down.
 
@@ -97,7 +97,7 @@ The repo is public. Code being visible is fine: security must never depend on th
 
 ## 4. How the rules are enforced
 
-- **Automatic where cheap:** the config test, gitleaks, CodeQL, Dependabot, and a CI step that starts Docker Compose and checks `/health/db` (this also closes L20).
+- **Automatic where cheap:** the config test, gitleaks, CodeQL, and a CI step that starts Docker Compose and checks `/health/db` (this also closes L20).
 - **A checklist in every pull request** for the rest: simplicity (S9), configuration (no tunable numbers at the top of files), security (X9).
 - **I (Claude) check each delivery against these rules before handing it over**, and say plainly in the delivery message if I had to break one and why.
 

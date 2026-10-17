@@ -66,7 +66,7 @@ Then the version is tagged in Git (v0.1, v0.2, ...).
 ### Simplicity, configuration and security (rulebook: `engineering-rules.md`)
 - **Simplicity:** one file per topic, shallow folders, tests mirror the code, a "where things live" map in the README, and every pull request says how many files it added or removed and why.
 - **Configuration has three homes:** secrets in `.env` (never committed); tunable numbers (search weights, limits, page sizes, retry waits, quest values) in a committed, validated `backend/config.toml`; formulas and science constants in code, next to the formula.
-- **Security for a public repo:** nothing that grants access is ever committed; no default passwords in committed files; ports kept closed; GitHub secret scanning, Dependabot and CodeQL turned on; a secret scan and a Compose smoke test in CI; every user-data endpoint filters by the signed-in user and has a test that another user cannot read it; every input has limits; a short security check in every pull request.
+- **Security for a public repo:** nothing that grants access is ever committed; no default passwords in committed files; ports kept closed; GitHub secret scanning, Dependabot alerts (not update pull requests) and CodeQL turned on; a secret scan and a Compose smoke test in CI; every user-data endpoint filters by the signed-in user and has a test that another user cannot read it; every input has limits; a short security check in every pull request.
 - **Hard gate:** v0.9 (Hardening) must be finished before v1.0, and so before anyone but the author uses the app.
 
 ## 5. Design principles
@@ -274,7 +274,7 @@ Every version must pass the version gate in section 4 before the next begins. Ev
 | AI | A free-tier model API (e.g. Gemini Flash-tier) | Free limits and model names change, so we'll check current ones when we get to v0.5 |
 | Database and hosting (later) | Postgres in Docker locally; free tiers (e.g. Supabase, Neon) for hosting | Free tiers can pause or limit storage |
 | CI | GitHub Actions (free for public repos, with a monthly allowance for private ones) | Keep workflows lean |
-| Code security | GitHub secret scanning, push protection, Dependabot and CodeQL are free on public repos; gitleaks is free | Keep the alerts turned on and read them |
+| Code security | GitHub secret scanning, push protection, Dependabot alerts and CodeQL are free on public repos; gitleaks is free | Keep the alerts turned on and read them |
 | Notifications | Local scheduled notifications need no server | We'll verify what Expo Go supports when we reach v0.6 and v0.7 |
 
 ## 11. Learning goals map
