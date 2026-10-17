@@ -2,17 +2,17 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import App from './App';
 import { ApiError } from './src/api/client';
-import { getLimits } from './src/api/limits';
-import { getCurrentGoal, getProfile, type Goal, type Profile } from './src/api/users';
+import { getLimits } from './src/api/endpoints';
+import { getCurrentGoal, getProfile, type Goal, type Profile } from './src/api/endpoints';
 import { getStoredToken } from './src/storage/token';
 
 jest.mock(
   'react-native-safe-area-context',
   () => jest.requireActual('react-native-safe-area-context/jest/mock').default,
 );
-jest.mock('./src/api/users');
-jest.mock('./src/api/health');
-jest.mock('./src/api/limits');
+jest.mock('./src/api/endpoints');
+jest.mock('./src/api/endpoints');
+jest.mock('./src/api/endpoints');
 jest.mock('./src/storage/token');
 jest.mock('./src/config', () => ({ getApiBaseUrl: () => 'http://192.168.1.5:8000' }));
 

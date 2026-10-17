@@ -8,7 +8,7 @@ their group.
 could ride along with another milestone. *Before others* means it must be fixed before anyone but
 the author uses the app.
 
-Last reviewed after: M6.1 follow-up 4 (food search quality).
+Last reviewed after: M6.R (cleanup).
 
 ---
 
@@ -172,11 +172,8 @@ Last reviewed after: M6.1 follow-up 4 (food search quality).
   - Done: every error now has a plain-sentence `detail`, and problems with a specific answer also
     carry `errors: [{field, message}]`, which the survey screen shows under the right box.
 
-- [ ] **L20. CI doesn't start the whole Docker Compose setup.** It builds the Docker image but
-  never runs it, so a mistake in `docker-compose.yml` would only show up on your Mac.
-  - Fix: add a CI step that starts Compose, calls `/health/db`, and shuts it down. Good practice
-    for your Docker and Actions goals.
-  - Revisit: after the prototype.
+- [x] **L20. CI doesn't start the whole Docker Compose setup.** Closed in M6.R: a CI job now starts
+  Compose, calls `/health/db`, and shuts it down.
 
 - [ ] **L21. Database migrations run automatically every time the API container starts.**
   - Why: convenient for one local copy.

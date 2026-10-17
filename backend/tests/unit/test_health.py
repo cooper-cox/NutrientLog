@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
 
-from app.core.db import get_session
+from app.db import get_session
 from app.main import app
 
 

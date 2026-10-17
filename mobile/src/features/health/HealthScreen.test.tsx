@@ -2,11 +2,10 @@ import { act, fireEvent, render, renderHook, screen } from '@testing-library/rea
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ApiError } from '../../api/client';
-import { getDatabaseHealth, getHealth } from '../../api/health';
-import { HealthScreen } from './HealthScreen';
-import { useServerHealth } from './useServerHealth';
+import { getDatabaseHealth, getHealth } from '../../api/endpoints';
+import { HealthScreen , useServerHealth } from './HealthScreen';
 
-jest.mock('../../api/health');
+jest.mock('../../api/endpoints');
 jest.mock('../../config', () => ({ getApiBaseUrl: () => 'http://192.168.1.5:8000' }));
 
 const mockGetHealth = jest.mocked(getHealth);

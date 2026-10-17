@@ -7,7 +7,7 @@ In CI:    the workflow starts a Postgres service and runs the migrations first.
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-from app.core.db import get_engine
+from app.db import get_engine
 from app.main import app
 
 

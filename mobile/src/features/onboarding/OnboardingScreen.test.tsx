@@ -3,13 +3,12 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ApiError } from '../../api/client';
-import { getLimits, type Limits } from '../../api/limits';
-import type { ProfileSaved } from '../../api/users';
+import { getLimits, type Limits , ProfileSaved } from '../../api/endpoints';
 import { OnboardingScreen } from './OnboardingScreen';
 import { saveSurvey } from './saveSurvey';
 
 jest.mock('./saveSurvey');
-jest.mock('../../api/limits');
+jest.mock('../../api/endpoints');
 jest.mock('../../lib/timezone', () => ({ getTimeZone: () => 'America/Los_Angeles' }));
 
 const mockSaveSurvey = jest.mocked(saveSurvey);

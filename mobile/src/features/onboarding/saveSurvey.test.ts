@@ -1,9 +1,9 @@
 import { ApiError } from '../../api/client';
-import { createUser, type ProfileIn, type ProfileSaved, saveProfile } from '../../api/users';
+import { createUser, type ProfileIn, type ProfileSaved, saveProfile } from '../../api/endpoints';
 import { clearStoredToken, getStoredToken, storeToken } from '../../storage/token';
 import { saveSurvey } from './saveSurvey';
 
-jest.mock('../../api/users');
+jest.mock('../../api/endpoints');
 jest.mock('../../storage/token');
 
 const mockCreateUser = jest.mocked(createUser);

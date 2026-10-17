@@ -22,12 +22,30 @@ backend/    FastAPI app, migrations, tests
 shared/     Test cases used by both the backend and the app, so they agree
 mobile/     Expo app
 docs/       Project plan, build plans, per-version phone test checklists
-.github/    CI workflows
+.github/    CI workflows, security scans, Dependabot
 ```
+
+### Where things live
+
+| If you want to find... | Look in |
+|---|---|
+| An API endpoint | `backend/app/routes.py` |
+| The shape of what the API accepts and returns | `backend/app/schemas.py` |
+| The database tables | `backend/app/models.py` (changes go in `backend/migrations/`) |
+| How a calorie goal is worked out | `backend/app/calc/goals.py` |
+| How food search results are ordered | `backend/app/calc/food_rank.py` (weights are in `backend/config.toml`) |
+| Talking to USDA and Open Food Facts | `backend/app/sources/` |
+| Saving the survey / saving and searching foods | `backend/app/profiles.py`, `backend/app/foods.py` |
+| Numbers you can tune (search weights, limits, retry waits) | `backend/config.toml` |
+| Secrets and per-machine settings | your `.env` file (see `.env.example`; never committed) |
+| A screen on the phone | `mobile/src/features/<name>/` |
+| Every call the phone makes to the server | `mobile/src/api/endpoints.ts` |
+| Tests | next to what they test: `backend/tests/` mirrors `backend/app/`; phone tests sit beside their files |
+| The rules we build by | `docs/engineering-rules.md` |
 
 ## Running the backend
 
-Requires Docker Desktop.
+Requires Docker Desktop. First copy `.env.example` to a new file named `.env` and choose a database password in it (there is no built-in password, and `docker compose` refuses to start without one). Then:
 
 ```
 docker compose up --build
@@ -100,7 +118,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 
-export DATABASE_URL=postgresql+psycopg://nutrientlog:nutrientlog@localhost:5432/nutrientlog
+export DATABASE_URL=postgresql+psycopg://nutrientlog:YOUR_PASSWORD@localhost:5432/nutrientlog   # the password from your .env
 alembic upgrade head
 uvicorn app.main:app --reload
 ```
@@ -115,7 +133,7 @@ pytest tests/integration      # needs the database and migrations from above
 alembic check                 # fails if models and migrations disagree
 ```
 
-Changing a table: edit the model in `app/models/`, then run `alembic revision --autogenerate -m "describe change"` and review the generated file in `migrations/versions/`.
+Changing a table: edit the model in `app/models.py`, then run `alembic revision --autogenerate -m "describe change"` and review the generated file in `migrations/versions/`.
 
 ## Docs
 

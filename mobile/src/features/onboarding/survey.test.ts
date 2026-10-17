@@ -1,4 +1,4 @@
-import type { Profile } from '../../api/users';
+import type { Profile } from '../../api/endpoints';
 import {
   birthBoxProblem,
   buildProfileRequest,

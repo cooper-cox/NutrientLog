@@ -7,7 +7,7 @@ import { formFromProfile } from './src/features/onboarding/survey';
 import { OnboardingScreen } from './src/features/onboarding/OnboardingScreen';
 import { HealthScreen } from './src/features/health/HealthScreen';
 import { ResultsScreen } from './src/features/results/ResultsScreen';
-import { useSession } from './src/features/session/useSession';
+import { useSession } from './src/features/session/session';
 import { Button } from './src/ui/components';
 
 function Screens() {

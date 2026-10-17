@@ -6,14 +6,15 @@ app can show each message under the right box.
 
 from collections.abc import Mapping, Sequence
 
-from app.calc.calorie_target import InvalidInputError, Problem
-from app.calc.nutrient_catalog import BY_KEY, MAX_PER_100G
+from app.calc.goals import InvalidInputError, Problem
+from app.calc.nutrients import BY_KEY, MAX_PER_100G
+from app.settings import settings
 
-MAX_NAME_LENGTH = 200
-MAX_BRAND_LENGTH = 100
-MAX_SERVINGS = 20
-MAX_SERVING_GRAMS = 5000.0
-MAX_SERVING_LABEL_LENGTH = 60
+MAX_NAME_LENGTH = settings.food.max_name_length
+MAX_BRAND_LENGTH = settings.food.max_brand_length
+MAX_SERVINGS = settings.food.max_servings
+MAX_SERVING_GRAMS = settings.food.max_serving_grams
+MAX_SERVING_LABEL_LENGTH = settings.food.max_serving_label_length
 # Protein + fat + carbohydrate cannot add up to more than the food itself weighs. A little slack
 # covers rounding on labels (e.g. 33.4 + 33.3 + 33.4).
 MAX_MACRO_GRAMS_PER_100G = 101.0

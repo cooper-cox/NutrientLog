@@ -5,9 +5,9 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.core.clock import utc_now
-from app.core.db import get_engine, get_session
+from app.db import get_engine, get_session
 from app.main import app
+from app.routes import utc_now
 
 # The pretend "current time" for API tests: noon UTC on Oct 8, 2026.
 FIXED_NOW = datetime(2026, 10, 8, 12, 0, tzinfo=UTC)

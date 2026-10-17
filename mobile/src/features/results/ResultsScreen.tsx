@@ -1,7 +1,7 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { Goal, Profile } from '../../api/users';
+import type { Goal, Profile } from '../../api/endpoints';
 import { formatRate, formatWeight } from '../../lib/units';
 import { Button, DISCLAIMER } from '../../ui/components';
 

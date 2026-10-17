@@ -1,8 +1,8 @@
 import pytest
 
-from app.calc.calorie_target import InvalidInputError
 from app.calc.food_check import check_food, clean_text
-from app.calc.nutrient_catalog import BY_KEY, CATALOG, KEYS, convert_amount
+from app.calc.goals import InvalidInputError
+from app.calc.nutrients import BY_KEY, CATALOG, KEYS, convert_amount
 
 GOOD = {"calories": 250.0, "protein_g": 10.0, "fat_g": 5.0, "carb_g": 40.0}
 

@@ -1,5 +1,4 @@
-import type { Limits } from '../../api/limits';
-import type { GoalType, UnitPreference } from '../../api/users';
+import type { Limits , GoalType, UnitPreference } from '../../api/endpoints';
 import sharedCases from '../../../../shared/profile_check_cases.json';
 import { ageOn, checkAnswers } from './checks';
 
