@@ -1,5 +1,5 @@
 import { ApiError } from '../../api/client';
-import { createUser, type ProfileIn, type ProfileSaved, saveProfile } from '../../api/users';
+import { createUser, type ProfileIn, type ProfileSaved, saveProfile } from '../../api/endpoints';
 import { clearStoredToken, getStoredToken, storeToken } from '../../storage/token';
 
 async function registerNewUser(): Promise<string> {

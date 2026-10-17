@@ -16,11 +16,11 @@ import re
 import sys
 import time
 
-from app.core.config import settings
-from app.integrations.base import FoodCandidate, FoodPage, FoodSource, FoodSourceError
-from app.integrations.openfoodfacts import OpenFoodFactsClient
-from app.integrations.usda import UsdaClient
-from app.services.foods import gather_and_rank, serving_out
+from app.foods import gather_and_rank, serving_out
+from app.settings import settings
+from app.sources import FoodCandidate, FoodPage, FoodSource, FoodSourceError
+from app.sources.openfoodfacts import OpenFoodFactsClient
+from app.sources.usda import UsdaClient
 
 # (what a person types, what they most likely mean, a pattern the right result's name+brand
 # matches). A search PASSES when some result in the top five matches the pattern.
@@ -113,6 +113,7 @@ class Recorder:
         self.name = source.name
         self.fallback = source.fallback
         self.last: FoodPage | FoodSourceError | None = None
+        self.notes: list[str] = []
         self._last_call = 0.0
 
     def search(self, query: str, limit: int, page: int = 1) -> FoodPage:
@@ -125,6 +126,7 @@ class Recorder:
             self.last = error
             raise
         finally:
+            self.notes = list(getattr(self._source, "notes", []))
             self._last_call = time.monotonic()
         return self.last
 
@@ -163,6 +165,7 @@ def main() -> int:
     for query, meaning, pattern in SEARCHES:
         for source in sources:
             source.last = None
+            source.notes = []
         ranked, statuses, _ = gather_and_rank(query, list(sources))
         top = ranked[:SHOW]
         ok = any(re.search(pattern, f"{c.name} {c.brand or ''}".lower()) for c in top)
@@ -188,6 +191,7 @@ def main() -> int:
         for source in sources:
             if source.name not in asked:
                 body.append(f"- {source.name}: not asked (the main database found enough)")
+            body.extend(f"- {source.name} note: {note}" for note in source.notes)
         for number, candidate in enumerate(top, start=1):
             body.append(f"{number}. {line(candidate)}")
         if not ranked:

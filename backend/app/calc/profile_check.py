@@ -7,7 +7,7 @@ The body-size limits below are judgement calls, not medical facts. They exist to
 clearly unsafe goals; they should be reviewed with a professional before others use the app (L29).
 """
 
-from app.calc.calorie_target import (
+from app.calc.goals import (
     MAX_AGE_YEARS,
     MAX_GAIN_KG_PER_WEEK,
     MAX_HEIGHT_CM,
@@ -22,14 +22,15 @@ from app.calc.calorie_target import (
     weight_range_text,
 )
 from app.calc.units import Units, format_weight_limit
+from app.settings import settings
 
 # Height and weight that can't both be right (a typo, or someone who needs a doctor, not an app).
-MIN_PLAUSIBLE_BMI = 14.0
-MAX_PLAUSIBLE_BMI = 80.0
+MIN_PLAUSIBLE_BMI = settings.profile.min_plausible_bmi
+MAX_PLAUSIBLE_BMI = settings.profile.max_plausible_bmi
 # The lowest goal we'll set for someone who wants to lose weight: the bottom of the healthy range.
-MIN_GOAL_BMI_WHEN_LOSING = 18.5
+MIN_GOAL_BMI_WHEN_LOSING = settings.profile.min_goal_bmi_when_losing
 # The highest goal weight we'll set for someone who wants to gain weight.
-MAX_GOAL_BMI = 45.0
+MAX_GOAL_BMI = settings.profile.max_goal_bmi
 
 
 def bmi(weight_kg: float, height_cm: float) -> float:

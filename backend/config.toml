@@ -1,0 +1,73 @@
+# NutrientLog settings you can tune. This file is committed, so it never holds secrets
+# (keys and passwords go in the .env file). A test checks every value here is in a sensible range.
+# Formulas and science (7,700 kcal per kg, Mifflin-St Jeor, unit conversions) stay in the code.
+
+[ranking]
+# How search results are ordered (calc in app/calc/food_rank.py). Run scripts/search_check.py
+# after changing any of these.
+coverage = 100.0          # share of the typed words found in the name or brand
+all_found = 30.0          # every typed word found
+name_only = 10.0          # share of the typed words found in the name itself
+brand_and_name = 15.0     # brand words in the brand, the rest in the name ("clif" + "bar")
+exact_name = 20.0         # a curated food named exactly as typed, in any order ("Milk, whole")
+plural_head = 8.0         # one typed word, and a curated name starting with its plural ("Eggs, ...")
+starts_with = 8.0         # the name begins with the first typed word
+generic_food = 15.0       # short query and a curated plain food ("banana", "flour")
+plain_word = 8.0          # a plain food whose name says raw / cooked / plain / fresh
+extra_word = 1.5          # penalty per name word that was not typed
+extra_cap = 20.0          # most that extra words can cost
+energy_mismatch = 30.0    # penalty when the calories disagree with protein, carbs and fat
+has_serving = 3.0         # bonus for having a named serving
+source_order = 5.0        # the source's own relevance, as a tiebreaker (fades over 50 places)
+close_word = 0.8          # credit for a typed word that is the start of a name word ("banan")
+plural_only = 0.9         # credit when a typed plural only matches a singular
+typo_word = 0.7           # credit for a word one letter off ("chiken")
+
+[search]
+saved_limit = 25               # saved foods shown per search
+source_limit = 50              # results asked of each outside database, per page
+enough_full_matches = 5        # fewer close matches than this: also ask the fallback database
+long_query_words = 3           # queries this long also ask the fallback database
+min_query_length = 2
+max_query_length = 100
+timeout_seconds = 8.0          # how long to wait for an outside database
+usda_generic_limit = 60        # plain foods asked of USDA per search
+usda_loose_below = 10          # fewer strict USDA matches than this: also look for partial matches
+usda_retry_waits = [1.0, 3.0]  # seconds to wait before each retry
+off_retry_waits = [2.0, 5.0]
+off_cooldown_seconds = 60.0    # Open Food Facts is not asked again for this long after failing
+
+[food]
+# Limits on a food a person saves by hand.
+max_name_length = 200
+max_brand_length = 100
+max_servings = 20
+max_serving_grams = 5000.0
+max_serving_label_length = 60
+
+[goals]
+# Calorie-target policy (the formulas themselves are in app/calc/goals.py).
+max_gain_kg_per_week = 0.5
+max_lose_kg_per_week = 1.0
+protein_g_per_kg = 1.8
+max_protein_fraction = 0.35
+fat_fraction = 0.25
+
+[goals.activity]
+sedentary = 1.2
+light = 1.375
+moderate = 1.55
+very_active = 1.725
+extra_active = 1.9
+
+[goals.calorie_floor]
+male = 1500
+female = 1200
+no_answer = 1350
+
+[profile]
+# Height and weight that cannot both be right.
+min_plausible_bmi = 14.0
+max_plausible_bmi = 80.0
+min_goal_bmi_when_losing = 18.5
+max_goal_bmi = 45.0

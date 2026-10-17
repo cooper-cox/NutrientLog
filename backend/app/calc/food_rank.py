@@ -9,6 +9,8 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from app.settings import settings
+
 # Words that carry no meaning for matching ("bar of chocolate" should match "chocolate bar").
 _FILLER = frozenset({"a", "an", "and", "of", "the", "with", "in", "for", "&"})
 _WORD = re.compile(r"[a-z0-9]+")
@@ -21,23 +23,45 @@ _PLAIN_WORDS = frozenset({"raw", "cooked", "plain", "fresh"})
 _RAW_WORDS = frozenset({"raw", "fresh"})
 
 # Score weights. Coverage of the typed words dominates; the rest breaks ties sensibly.
-W_COVERAGE = 100.0  # share of the typed words found in the name or brand
-W_ALL_FOUND = 30.0  # every typed word found
-W_NAME_ONLY = 10.0  # share of the typed words found in the name itself
-W_BRAND_AND_NAME = 15.0  # brand words in the brand, the rest in the name ("clif" + "bar")
-W_EXACT_NAME = 20.0  # a curated food named exactly as typed, in any order ("Milk, whole")
-W_PLURAL_HEAD = 8.0  # one typed word, and a curated name that starts with its plural ("Eggs, ...")
-W_STARTS_WITH = 8.0  # the name begins with the first typed word ("Oreo ...", "Banana ...")
-W_GENERIC_FOOD = 15.0  # short query and a curated plain food ("banana", "flour")
-W_PLAIN_WORD = 8.0  # a plain food whose name says raw / cooked / plain / fresh
-P_EXTRA_WORD = 1.5  # per name word that was not typed (shorter, more exact names win)
-P_EXTRA_CAP = 20.0
-P_ENERGY_MISMATCH = 30.0  # the calories disagree with the protein, carbs and fat
-W_HAS_SERVING = 3.0
-W_SOURCE_ORDER = 5.0  # the source's own relevance, as a tiebreaker (fades over 50 places)
-CLOSE_WORD = 0.8  # credit for a typed word that is the start of a name word ("banan")
-PLURAL_ONLY = 0.9  # credit when a typed plural only matches a singular ("snickers" ~ "snicker")
-TYPO_WORD = 0.7  # credit for a word one letter off ("chiken")
+W_COVERAGE = settings.ranking.coverage  # share of the typed words found in the name or brand
+W_ALL_FOUND = settings.ranking.all_found  # every typed word found
+W_NAME_ONLY = settings.ranking.name_only  # share of the typed words found in the name itself
+W_BRAND_AND_NAME = (
+    settings.ranking.brand_and_name
+)  # brand words in the brand, the rest in the name ("clif" + "bar")
+W_EXACT_NAME = (
+    settings.ranking.exact_name
+)  # a curated food named exactly as typed, in any order ("Milk, whole")
+W_PLURAL_HEAD = (
+    settings.ranking.plural_head
+)  # one typed word, and a curated name that starts with its plural ("Eggs, ...")
+W_STARTS_WITH = (
+    settings.ranking.starts_with
+)  # the name begins with the first typed word ("Oreo ...", "Banana ...")
+W_GENERIC_FOOD = (
+    settings.ranking.generic_food
+)  # short query and a curated plain food ("banana", "flour")
+W_PLAIN_WORD = (
+    settings.ranking.plain_word
+)  # a plain food whose name says raw / cooked / plain / fresh
+P_EXTRA_WORD = (
+    settings.ranking.extra_word
+)  # per name word that was not typed (shorter, more exact names win)
+P_EXTRA_CAP = settings.ranking.extra_cap
+P_ENERGY_MISMATCH = (
+    settings.ranking.energy_mismatch
+)  # the calories disagree with the protein, carbs and fat
+W_HAS_SERVING = settings.ranking.has_serving
+W_SOURCE_ORDER = (
+    settings.ranking.source_order
+)  # the source's own relevance, as a tiebreaker (fades over 50 places)
+CLOSE_WORD = (
+    settings.ranking.close_word
+)  # credit for a typed word that is the start of a name word ("banan")
+PLURAL_ONLY = (
+    settings.ranking.plural_only
+)  # credit when a typed plural only matches a singular ("snickers" ~ "snicker")
+TYPO_WORD = settings.ranking.typo_word  # credit for a word one letter off ("chiken")
 SHORT_QUERY_WORDS = 3
 STARTS_WITH_MAX_WORDS = (
     2  # longer queries are "brand + flavour", where the first word is not the food

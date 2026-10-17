@@ -1,0 +1,36 @@
+name: security
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 9 * * 1" # weekly, so a new vulnerability in an old dependency is noticed
+
+jobs:
+  # Fails the build if a key, token or password is committed. (GitHub's own secret scanning, turned
+  # on in the repository settings, does the same on GitHub's side.)
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # GitHub's free code scanning: looks for common security mistakes in the code.
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    strategy:
+      matrix:
+        language: [python, javascript-typescript]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+      - uses: github/codeql-action/analyze@v3

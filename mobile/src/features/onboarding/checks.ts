@@ -1,5 +1,4 @@
-import type { Limits } from '../../api/limits';
-import type { GoalType, UnitPreference } from '../../api/users';
+import type { Limits , GoalType, UnitPreference } from '../../api/endpoints';
 import { formatHeightLimit, formatWeightLimit } from '../../lib/units';
 
 /*

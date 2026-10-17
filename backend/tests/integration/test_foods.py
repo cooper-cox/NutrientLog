@@ -7,10 +7,10 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_food_sources
-from app.integrations.base import FoodCandidate, FoodPage, FoodSourceError, ServingCandidate
 from app.main import app
 from app.models import Food, FoodNutrient, FoodServing
+from app.routes import get_food_sources
+from app.sources import FoodCandidate, FoodPage, FoodSourceError, ServingCandidate
 
 BASE = "/api/v1/foods"
 

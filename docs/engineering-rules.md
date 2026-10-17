@@ -16,23 +16,26 @@ This file wins over older wording in `plan.md` and `v0.1-build-plan.md` where th
 
 **S4. Keep the one boundary that pays for itself: pure logic.** Calculations (calorie targets, nutrient scaling, ranking, unit conversion) stay as plain functions with no database or network calls, so they can be tested quickly and exactly.
 
-**S5. Target backend shape (confirm against the real repo when M6.R starts):**
+**S5. Backend shape (as built in M6.R):**
 
 ```
 backend/
   app/
     main.py          # builds the app
-    settings.py      # loads .env and config.toml once
+    settings.py      # loads .env and config.toml once, checks every value
     db.py            # database connection
     errors.py        # the one error format
+    auth.py          # anonymous-user tokens and the "current user" check
     models.py        # database tables
     schemas.py       # request/response shapes (split by topic only past ~400 lines)
-    routes/          # users.py, goals.py, foods.py, limits.py, health.py
-    calc/            # goals.py, nutrients.py, ranking.py, units.py (pure functions)
-    sources/         # usda.py, openfoodfacts.py (+ the shared interface in __init__.py)
+    routes.py        # every endpoint (split into routes/ by topic past ~400 lines)
+    profiles.py      # saving the survey and working out the goal
+    foods.py         # saving, finding and searching foods
+    calc/            # pure functions: dates, food_check, food_rank, goals, nutrients, profile_check, units
+    sources/         # __init__.py (the shared interface), usda.py, openfoodfacts.py
   config.toml
   migrations/
-  tests/             # one test file per source file
+  tests/             # one test file per source file (unit/ mirrors app/calc and app/sources)
   scripts/           # search_check.py
 ```
 

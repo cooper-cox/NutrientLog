@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { getLimits, type Limits } from '../../api/limits';
+import { getLimits, type Limits } from '../../api/endpoints';
 
 const MAX_FAILURES = 3;
 const RETRY_DELAY_MS = 2000;

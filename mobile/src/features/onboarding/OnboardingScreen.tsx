@@ -11,7 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ApiError } from '../../api/client';
-import type { ActivityLevel, GoalType, ProfileSaved, Sex } from '../../api/users';
+import type { ActivityLevel, GoalType, ProfileSaved, Sex } from '../../api/endpoints';
 import { formatRate } from '../../lib/units';
 import { getTimeZone } from '../../lib/timezone';
 import { Button, ChoiceGroup, DISCLAIMER, FormGroup, Input } from '../../ui/components';

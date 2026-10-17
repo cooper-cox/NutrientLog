@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import type { Goal, Profile } from '../../api/users';
+import type { Goal, Profile } from '../../api/endpoints';
 import { ResultsScreen } from './ResultsScreen';
 
 const PHONE = {

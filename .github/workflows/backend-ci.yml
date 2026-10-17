@@ -24,6 +24,7 @@ jobs:
           --health-retries 10
 
     env:
+      # A throwaway database that exists only on this CI machine, so this is not a real secret.
       DATABASE_URL: postgresql+psycopg://nutrientlog:nutrientlog@localhost:5432/nutrientlog
 
     defaults:
@@ -62,3 +63,28 @@ jobs:
 
       - name: Build Docker image
         run: docker build -t nutrientlog-backend .
+
+  # Starts the real thing the way the README does (docker compose) and asks it if it is healthy.
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Make a throwaway .env
+        run: echo "POSTGRES_PASSWORD=$(openssl rand -hex 16)" > .env
+
+      - name: Start the database and the API
+        run: docker compose up -d --build
+
+      - name: Wait for the API to answer, then check the database connection
+        run: |
+          for i in $(seq 1 40); do
+            if curl -fsS http://localhost:8000/health/db; then exit 0; fi
+            sleep 3
+          done
+          docker compose logs
+          exit 1
+
+      - name: Stop everything
+        if: always()
+        run: docker compose down -v

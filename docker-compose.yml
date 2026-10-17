@@ -3,7 +3,8 @@ services:
     image: postgres:16
     environment:
       POSTGRES_USER: nutrientlog
-      POSTGRES_PASSWORD: nutrientlog
+      # Set POSTGRES_PASSWORD in the .env file next to this one; there is no built-in password.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the .env file (see .env.example)}
       POSTGRES_DB: nutrientlog
     ports:
       - "127.0.0.1:5432:5432" # reachable from this computer only
@@ -18,8 +19,8 @@ services:
   api:
     build: ./backend
     environment:
-      DATABASE_URL: postgresql+psycopg://nutrientlog:nutrientlog@db:5432/nutrientlog
-      # Optional: put USDA_API_KEY=... in a file named .env next to this one to turn on USDA search.
+      DATABASE_URL: postgresql+psycopg://nutrientlog:${POSTGRES_PASSWORD}@db:5432/nutrientlog
+      # Optional: put USDA_API_KEY=... in the .env file to turn on USDA search.
       USDA_API_KEY: ${USDA_API_KEY:-}
     ports:
       - "8000:8000" # reachable from the phone over Wi-Fi

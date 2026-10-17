@@ -5,8 +5,7 @@ import type {
   ProfileIn,
   Sex,
   UnitPreference,
-} from '../../api/users';
-import type { Limits } from '../../api/limits';
+ Limits } from '../../api/endpoints';
 import { cmToFtIn, ftInToCm, kgToLb, lbToKg, round1 } from '../../lib/units';
 import { ageOn, checkAnswers } from './checks';
 
