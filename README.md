@@ -22,7 +22,7 @@ backend/    FastAPI app, migrations, tests
 shared/     Test cases used by both the backend and the app, so they agree
 mobile/     Expo app
 docs/       Project plan, build plans, per-version phone test checklists
-.github/    CI workflows, security scans, Dependabot
+.github/    CI workflows, security scans
 ```
 
 ### Where things live
