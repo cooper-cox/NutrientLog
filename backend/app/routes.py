@@ -1,4 +1,4 @@
-"""Every HTTP endpoint: health checks, users and profile, goals, limits, and foods.
+"""Every HTTP endpoint: health checks, users and profile, goals, limits, foods, and the log.
 
 Routes only read the request and call the code that does the work (profiles.py, foods.py,
 auth.py, calc/). The health checks are unversioned because Docker and CI expect fixed URLs;
@@ -6,7 +6,7 @@ everything else is under /api/v1.
 """
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from functools import lru_cache
 from typing import Annotated
 
@@ -15,7 +15,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app import auth, foods, profiles
+from app import auth, foods, log, profiles
 from app.auth import CurrentUser
 from app.calc.measures import measures_from_servings, parse_amount, to_grams
 from app.calc.profile_check import limits
@@ -24,12 +24,15 @@ from app.schemas import (
     AmountIn,
     AmountOut,
     DatabaseHealthResponse,
+    DayOut,
     FoodIn,
     FoodOut,
     FoodSearchOut,
     GoalOut,
     HealthResponse,
     LimitsOut,
+    LogEntryIn,
+    LogEntryOut,
     MeasuresOut,
     ProfileIn,
     ProfileOut,
@@ -222,3 +225,36 @@ def get_food(food_id: uuid.UUID, user: CurrentUser, session: SessionDep) -> Food
     if food is None:
         raise HTTPException(status_code=404, detail="food not found")
     return foods.food_out(food)
+
+
+# --- food log ---
+
+
+@v1.post("/log", response_model=LogEntryOut, status_code=201, tags=["log"])
+def add_log_entry(
+    data: LogEntryIn,
+    user: CurrentUser,
+    session: SessionDep,
+    now: Annotated[datetime, Depends(utc_now)],
+) -> LogEntryOut:
+    """Record that a saved food was eaten (an amount in grams), on today or a given day."""
+    return log.entry_out(log.add_entry(session, user, data, now))
+
+
+@v1.get("/log", response_model=DayOut, tags=["log"])
+def get_log_day(
+    user: CurrentUser,
+    session: SessionDep,
+    now: Annotated[datetime, Depends(utc_now)],
+    on: Annotated[date | None, Query(alias="date", description="YYYY-MM-DD; default today")] = None,
+) -> DayOut:
+    """What was eaten on a day, the totals, and the calories left against today's target."""
+    return log.day(session, user, on or log.today_for(user, now))
+
+
+@v1.delete("/log/{entry_id}", status_code=204, tags=["log"])
+def delete_log_entry(entry_id: uuid.UUID, user: CurrentUser, session: SessionDep) -> Response:
+    """Remove a mistake. Only your own entries can be removed (anything else is a 404)."""
+    if not log.remove_entry(session, user, entry_id):
+        raise HTTPException(status_code=404, detail="That entry was not found.")
+    return Response(status_code=204)

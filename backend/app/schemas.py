@@ -210,3 +210,37 @@ class AmountOut(BaseModel):
     grams: float
     quantity: float
     unit: str | None
+
+
+class LogEntryIn(BaseModel):
+    """Something eaten: a saved food and an amount in grams (the app works the grams out)."""
+
+    food_id: uuid.UUID
+    grams: float = Field(gt=0)
+    amount_text: str | None = Field(default=None, max_length=100)
+    # Leave out for "today, where the person is".
+    logged_on: date | None = None
+
+
+class LogEntryOut(BaseModel):
+    id: uuid.UUID
+    food_id: uuid.UUID
+    food_name: str
+    brand: str | None
+    logged_on: date
+    grams: float
+    amount_text: str | None
+    # What this amount contains; null = unknown for that nutrient.
+    nutrients: dict[str, float | None]
+    created_at: datetime
+
+
+class DayOut(BaseModel):
+    """Everything eaten on one day, the totals, and how that compares with the calorie target."""
+
+    date: date
+    entries: list[LogEntryOut]
+    totals: dict[str, float | None]
+    goal_calories: int | None
+    # Goal minus eaten; negative means over. Null until a goal exists.
+    remaining_calories: float | None

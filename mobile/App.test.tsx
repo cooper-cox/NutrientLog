@@ -4,6 +4,7 @@ import App from './App';
 import { ApiError } from './src/api/client';
 import { getLimits } from './src/api/endpoints';
 import { getCurrentGoal, getProfile, type Goal, type Profile } from './src/api/endpoints';
+import { getDay, type Day } from './src/api/food';
 import { getStoredToken } from './src/storage/token';
 
 jest.mock(
@@ -11,8 +12,7 @@ jest.mock(
   () => jest.requireActual('react-native-safe-area-context/jest/mock').default,
 );
 jest.mock('./src/api/endpoints');
-jest.mock('./src/api/endpoints');
-jest.mock('./src/api/endpoints');
+jest.mock('./src/api/food');
 jest.mock('./src/storage/token');
 jest.mock('./src/config', () => ({ getApiBaseUrl: () => 'http://192.168.1.5:8000' }));
 
@@ -20,6 +20,15 @@ const mockGetToken = jest.mocked(getStoredToken);
 const mockGetLimits = jest.mocked(getLimits);
 const mockGetProfile = jest.mocked(getProfile);
 const mockGetGoal = jest.mocked(getCurrentGoal);
+const mockGetDay = jest.mocked(getDay);
+
+const DAY: Day = {
+  date: '2026-10-18',
+  entries: [],
+  totals: {},
+  goal_calories: 3034,
+  remaining_calories: 3034,
+};
 
 const PROFILE: Profile = {
   name: 'Cooper',
@@ -51,7 +60,10 @@ const GOAL = {
 
 beforeEach(() => {
   // Reset only our own mocks: resetting everything would also wipe the safe-area mock above.
-  for (const mock of [mockGetToken, mockGetProfile, mockGetGoal, mockGetLimits]) mock.mockReset();
+  for (const mock of [mockGetToken, mockGetProfile, mockGetGoal, mockGetLimits, mockGetDay]) {
+    mock.mockReset();
+  }
+  mockGetDay.mockResolvedValue(DAY);
   // The survey asks the server for its limits; these tests don't need them.
   mockGetLimits.mockRejectedValue(new ApiError('Could not reach the server.'));
 });
@@ -63,15 +75,41 @@ describe('App', () => {
     expect(await screen.findByText('Let’s set your targets')).toBeTruthy();
   });
 
-  it('shows the saved targets when the survey is already done', async () => {
+  it('shows today, with calories left, when the survey is already done', async () => {
     mockGetToken.mockResolvedValue('token');
     mockGetProfile.mockResolvedValue(PROFILE);
     mockGetGoal.mockResolvedValue(GOAL);
 
     render(<App />);
 
-    expect(await screen.findByText('Cooper, your daily targets')).toBeTruthy();
-    expect(screen.getByText('3034')).toBeTruthy();
+    expect(await screen.findByText('Cooper, today')).toBeTruthy();
+    expect(await screen.findByLabelText('3034 calories left')).toBeTruthy();
+  });
+
+  it('opens the targets from today, and goes back', async () => {
+    mockGetToken.mockResolvedValue('token');
+    mockGetProfile.mockResolvedValue(PROFILE);
+    mockGetGoal.mockResolvedValue(GOAL);
+    render(<App />);
+    await screen.findByText('Cooper, today');
+
+    fireEvent.press(screen.getByRole('button', { name: 'My targets and answers' }));
+    expect(screen.getByText('Cooper, your daily targets')).toBeTruthy();
+    fireEvent.press(screen.getByRole('button', { name: 'Back to today' }));
+    expect(await screen.findByText('Cooper, today')).toBeTruthy();
+  });
+
+  it('opens the add-food screen and comes back', async () => {
+    mockGetToken.mockResolvedValue('token');
+    mockGetProfile.mockResolvedValue(PROFILE);
+    mockGetGoal.mockResolvedValue(GOAL);
+    render(<App />);
+    await screen.findByLabelText('3034 calories left');
+
+    fireEvent.press(screen.getByRole('button', { name: 'Add food' }));
+    expect(screen.getByLabelText('Search foods')).toBeTruthy();
+    fireEvent.press(screen.getByRole('button', { name: 'Back' }));
+    expect(await screen.findByText('Cooper, today')).toBeTruthy();
   });
 
   it('opens the survey again, filled in, when changing answers', async () => {
@@ -79,7 +117,8 @@ describe('App', () => {
     mockGetProfile.mockResolvedValue(PROFILE);
     mockGetGoal.mockResolvedValue(GOAL);
     render(<App />);
-    await screen.findByText('3034');
+    await screen.findByText('Cooper, today');
+    fireEvent.press(screen.getByRole('button', { name: 'My targets and answers' }));
 
     fireEvent.press(screen.getByRole('button', { name: 'Change my answers' }));
 
@@ -100,6 +139,6 @@ describe('App', () => {
     mockGetGoal.mockResolvedValue(GOAL);
     fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
 
-    expect(await screen.findByText('3034')).toBeTruthy();
+    expect(await screen.findByText('Cooper, today')).toBeTruthy();
   });
 });

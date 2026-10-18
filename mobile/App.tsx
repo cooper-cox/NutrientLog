@@ -1,18 +1,23 @@
-import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { StatusBar } from "expo-status-bar";
+import { useState } from "react";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
-import { formFromProfile } from './src/features/onboarding/survey';
-import { OnboardingScreen } from './src/features/onboarding/OnboardingScreen';
-import { HealthScreen } from './src/features/health/HealthScreen';
-import { ResultsScreen } from './src/features/results/ResultsScreen';
-import { useSession } from './src/features/session/session';
-import { Button } from './src/ui/components';
+import { formFromProfile } from "./src/features/onboarding/survey";
+import { OnboardingScreen } from "./src/features/onboarding/OnboardingScreen";
+import { HealthScreen } from "./src/features/health/HealthScreen";
+import { AddFoodScreen } from "./src/features/food/AddFoodScreen";
+import { HomeScreen } from "./src/features/home/HomeScreen";
+import { ResultsScreen } from "./src/features/results/ResultsScreen";
+import { useSession } from "./src/features/session/session";
+import { Button } from "./src/ui/components";
 
 function Screens() {
   const { state, retry, setSaved } = useSession();
   const [editing, setEditing] = useState(false);
+  const [page, setPage] = useState<"home" | "add" | "targets">("home");
+  // Bumped when food is added, so the home screen reloads today.
+  const [added, setAdded] = useState(0);
   const [checkingConnection, setCheckingConnection] = useState(false);
 
   if (checkingConnection) {
@@ -20,20 +25,20 @@ function Screens() {
   }
 
   switch (state.kind) {
-    case 'loading':
+    case "loading":
       return (
         <View style={styles.centered}>
           <ActivityIndicator size="large" />
           <Text style={styles.message}>Loading…</Text>
         </View>
       );
-    case 'error':
+    case "error":
       return (
         <View style={styles.centered}>
           <Text style={styles.message}>{state.message}</Text>
           <Text style={styles.hint}>
-            Is the backend running (docker compose up), and are your phone and computer on the same
-            Wi-Fi network?
+            Is the backend running (docker compose up), and are your phone and
+            computer on the same Wi-Fi network?
           </Text>
           <View style={styles.buttons}>
             <Button title="Try again" onPress={retry} />
@@ -45,9 +50,9 @@ function Screens() {
           </View>
         </View>
       );
-    case 'needs-survey':
+    case "needs-survey":
       return <OnboardingScreen onSaved={setSaved} />;
-    case 'ready':
+    case "ready":
       return editing ? (
         <OnboardingScreen
           initialForm={formFromProfile(state.profile)}
@@ -57,12 +62,29 @@ function Screens() {
           }}
           onCancel={() => setEditing(false)}
         />
-      ) : (
+      ) : page === "add" ? (
+        <AddFoodScreen
+          onAdded={() => {
+            setAdded((count) => count + 1);
+            setPage("home");
+          }}
+          onBack={() => setPage("home")}
+        />
+      ) : page === "targets" ? (
         <ResultsScreen
           profile={state.profile}
           goal={state.goal}
           onChangeAnswers={() => setEditing(true)}
           onCheckConnection={() => setCheckingConnection(true)}
+          onBack={() => setPage("home")}
+        />
+      ) : (
+        <HomeScreen
+          profile={state.profile}
+          goal={state.goal}
+          reloadKey={added}
+          onAddFood={() => setPage("add")}
+          onShowTargets={() => setPage("targets")}
         />
       );
   }
@@ -80,12 +102,23 @@ export default function App() {
 const styles = StyleSheet.create({
   centered: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     padding: 24,
-    backgroundColor: '#ffffff',
+    backgroundColor: "#ffffff",
   },
-  message: { fontSize: 18, color: '#111111', marginTop: 16, textAlign: 'center' },
-  hint: { fontSize: 15, color: '#555555', marginTop: 12, textAlign: 'center', lineHeight: 21 },
-  buttons: { alignSelf: 'stretch', marginTop: 20 },
+  message: {
+    fontSize: 18,
+    color: "#111111",
+    marginTop: 16,
+    textAlign: "center",
+  },
+  hint: {
+    fontSize: 15,
+    color: "#555555",
+    marginTop: 12,
+    textAlign: "center",
+    lineHeight: 21,
+  },
+  buttons: { alignSelf: "stretch", marginTop: 20 },
 });

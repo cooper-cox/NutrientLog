@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from '../config';
+import { getApiBaseUrl } from "../config";
 
 /** One survey answer the server rejected, e.g. { field: 'height_cm', message: '...' }. */
 export type FieldProblem = { field: string; message: string };
@@ -8,12 +8,20 @@ export class ApiError extends Error {
   readonly status: number | undefined;
   /** For rejected answers: the message for each field, so it can be shown under the right box. */
   readonly fieldErrors: Record<string, string>;
+  /** A short machine-readable reason some rejections carry, e.g. 'unknown_density'. */
+  readonly code: string | undefined;
 
-  constructor(message: string, status?: number, fieldErrors: Record<string, string> = {}) {
+  constructor(
+    message: string,
+    status?: number,
+    fieldErrors: Record<string, string> = {},
+    code?: string,
+  ) {
     super(message);
-    this.name = 'ApiError';
+    this.name = "ApiError";
     this.status = status;
     this.fieldErrors = fieldErrors;
+    this.code = code;
   }
 }
 
@@ -28,28 +36,43 @@ export type RequestOptions = {
   body?: unknown;
 };
 
-type Method = 'GET' | 'POST' | 'PUT';
+type Method = "GET" | "POST" | "PUT" | "DELETE";
 
 const DEFAULT_TIMEOUT_MS = 8000;
 
 /** The server's error format is { detail: string, errors?: [{ field, message }] }. */
 async function readProblem(
   response: Response,
-): Promise<{ detail?: string; fields: Record<string, string> }> {
+): Promise<{ detail?: string; code?: string; fields: Record<string, string> }> {
   try {
     const body: unknown = await response.json();
-    if (typeof body !== 'object' || body === null) return { fields: {} };
-    const { detail, errors } = body as { detail?: unknown; errors?: unknown };
+    if (typeof body !== "object" || body === null) return { fields: {} };
+    const { detail, errors, code } = body as {
+      detail?: unknown;
+      errors?: unknown;
+      code?: unknown;
+    };
     const fields: Record<string, string> = {};
     if (Array.isArray(errors)) {
       for (const item of errors) {
-        const { field, message } = (item ?? {}) as { field?: unknown; message?: unknown };
-        if (typeof field === 'string' && typeof message === 'string' && !(field in fields)) {
+        const { field, message } = (item ?? {}) as {
+          field?: unknown;
+          message?: unknown;
+        };
+        if (
+          typeof field === "string" &&
+          typeof message === "string" &&
+          !(field in fields)
+        ) {
           fields[field] = message;
         }
       }
     }
-    return { detail: typeof detail === 'string' ? detail : undefined, fields };
+    return {
+      detail: typeof detail === "string" ? detail : undefined,
+      code: typeof code === "string" ? code : undefined,
+      fields,
+    };
   } catch {
     return { fields: {} };
   }
@@ -67,8 +90,8 @@ export async function apiRequest<T>(
   const baseUrl = options.baseUrl ?? getApiBaseUrl();
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
-  const headers: Record<string, string> = { Accept: 'application/json' };
-  if (options.body !== undefined) headers['Content-Type'] = 'application/json';
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (options.body !== undefined) headers["Content-Type"] = "application/json";
   if (options.token) headers.Authorization = `Bearer ${options.token}`;
 
   const controller = new AbortController();
@@ -79,14 +102,15 @@ export async function apiRequest<T>(
     response = await fetch(`${baseUrl}${path}`, {
       method,
       headers,
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      body:
+        options.body === undefined ? undefined : JSON.stringify(options.body),
       signal: controller.signal,
     });
   } catch {
     if (controller.signal.aborted) {
-      throw new ApiError('The server took too long to respond.');
+      throw new ApiError("The server took too long to respond.");
     }
-    throw new ApiError('Could not reach the server.');
+    throw new ApiError("Could not reach the server.");
   } finally {
     clearTimeout(timer);
   }
@@ -94,18 +118,34 @@ export async function apiRequest<T>(
   if (!response.ok) {
     if (response.status === 422) {
       const problem = await readProblem(response);
-      throw new ApiError(problem.detail ?? 'Some answers need fixing.', 422, problem.fields);
+      throw new ApiError(
+        problem.detail ?? "Some answers need fixing.",
+        422,
+        problem.fields,
+        problem.code,
+      );
     }
-    throw new ApiError(`The server returned an error (${response.status}).`, response.status);
+    throw new ApiError(
+      `The server returned an error (${response.status}).`,
+      response.status,
+    );
   }
+
+  if (response.status === 204) return undefined as T;
 
   try {
     return (await response.json()) as T;
   } catch {
-    throw new ApiError('The server sent a reply the app could not read.', response.status);
+    throw new ApiError(
+      "The server sent a reply the app could not read.",
+      response.status,
+    );
   }
 }
 
-export function apiGet<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  return apiRequest<T>('GET', path, options);
+export function apiGet<T>(
+  path: string,
+  options: RequestOptions = {},
+): Promise<T> {
+  return apiRequest<T>("GET", path, options);
 }

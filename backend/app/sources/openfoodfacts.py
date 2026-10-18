@@ -11,6 +11,7 @@ from typing import Any
 
 import httpx
 
+from app.calc.food_names import drop_repeated_flavor, short_brand
 from app.calc.nutrients import CATALOG, MAX_PER_100G, convert_amount
 from app.settings import settings
 from app.sources import (
@@ -121,9 +122,10 @@ def map_product(raw: dict[str, Any]) -> FoodCandidate | None:
     nutrients = map_nutrients(nutriments)
     if nutrients["calories"] is None:
         return None
-    brand = " ".join(str(raw.get("brands") or "").split(",")[0].split()) or None
+    brand = short_brand(str(raw.get("brands") or "").split(",")[0]) or None
     if brand and brand.lower() == name.lower():
         brand = None
+    name = drop_repeated_flavor(name)
     return FoodCandidate(
         source=SOURCE,
         source_id=code[:64],
