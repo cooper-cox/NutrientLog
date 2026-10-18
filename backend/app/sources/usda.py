@@ -12,6 +12,7 @@ from typing import Any
 
 import httpx
 
+from app.calc.food_names import drop_repeated_flavor, short_brand
 from app.calc.nutrients import CATALOG, MAX_PER_100G, convert_amount
 from app.settings import settings
 from app.sources import (
@@ -224,15 +225,17 @@ def map_food(raw: dict[str, Any]) -> FoodCandidate | None:
     if brand and _tidy_name(str(brand)).lower() == _tidy_name(description).lower():
         brand = None  # the name already says it; don't show it twice
     barcode = raw.get("gtinUpc")
+    generic = raw.get("dataType") in _GENERIC_DATA_TYPES
+    name = _tidy_name(description)
     return FoodCandidate(
         source=SOURCE,
         source_id=str(fdc_id),
-        name=_tidy_name(description)[:200],
-        brand=_tidy_name(str(brand))[:100] if brand else None,
+        name=(name if generic else drop_repeated_flavor(name))[:200],
+        brand=short_brand(_tidy_name(str(brand)))[:100] if brand else None,
         barcode=str(barcode).strip() or None if barcode else None,
         nutrients=nutrients,
         servings=_serving(raw),
-        is_generic=raw.get("dataType") in _GENERIC_DATA_TYPES,
+        is_generic=generic,
     )
 
 

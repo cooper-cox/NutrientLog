@@ -146,7 +146,12 @@ def line(candidate: FoodCandidate) -> str:
     else:
         amount = "no serving"
     plain = " (plain food)" if candidate.is_generic else ""
-    return f"{candidate.name}{brand} ({candidate.source}{plain}) | {per_100} kcal/100 g | {amount}"
+    protein = candidate.nutrients.get("protein_g")
+    protein_text = "?" if protein is None else f"{protein:g}"
+    return (
+        f"{candidate.name}{brand} ({candidate.source}{plain}) | {per_100} kcal/100 g"
+        f" | {protein_text} g protein/100 g | {amount}"
+    )
 
 
 def main() -> int:

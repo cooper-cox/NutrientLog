@@ -1,0 +1,202 @@
+import { useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import type { FoodCandidate, SavedFood } from "../../api/food";
+import { Button, Input } from "../../ui/components";
+import {
+  displayName,
+  EMPTY_MANUAL,
+  resultLine,
+  type ManualForm,
+  type PickedFood,
+} from "./amounts";
+import { FoodDetail } from "./FoodDetail";
+import { ManualFood } from "./ManualFood";
+import { useFoodSearch } from "./useFoodSearch";
+
+type Props = {
+  onAdded: () => void;
+  onBack: () => void;
+};
+
+type Step =
+  | { kind: "search" }
+  | { kind: "manual"; initial: ManualForm; correcting: boolean }
+  | { kind: "detail"; picked: PickedFood };
+
+function Row({
+  name,
+  line,
+  tag,
+  onPress,
+}: {
+  name: string;
+  line: string;
+  tag?: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${name}. ${line}`}
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+    >
+      <Text style={styles.rowName}>{name}</Text>
+      {tag ? <Text style={styles.rowBrand}>{tag}</Text> : null}
+      <Text style={styles.rowLine}>{line}</Text>
+    </Pressable>
+  );
+}
+
+/** Find a food (one search box), pick an amount, add it to today. Or type one in by hand. */
+export function AddFoodScreen({ onAdded, onBack }: Props) {
+  const insets = useSafeAreaInsets();
+  const search = useFoodSearch();
+  const [step, setStep] = useState<Step>({ kind: "search" });
+
+  if (step.kind === "detail") {
+    return (
+      <FoodDetail
+        picked={step.picked}
+        onAdded={onAdded}
+        onBack={() => setStep({ kind: "search" })}
+        onFix={(initial: ManualForm) =>
+          setStep({ kind: "manual", initial, correcting: true })
+        }
+      />
+    );
+  }
+  if (step.kind === "manual") {
+    return (
+      <ManualFood
+        initial={step.initial}
+        correcting={step.correcting}
+        onSaved={(food: SavedFood) =>
+          setStep({ kind: "detail", picked: { kind: "saved", food } })
+        }
+        onBack={() => setStep({ kind: "search" })}
+      />
+    );
+  }
+
+  const nothingFound =
+    search.searched &&
+    !search.loading &&
+    search.saved.length === 0 &&
+    search.results.length === 0;
+
+  return (
+    <ScrollView
+      style={styles.screen}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 },
+      ]}
+    >
+      <Button title="Back" onPress={onBack} secondary />
+      <Text style={styles.title} accessibilityRole="header">
+        Add food
+      </Text>
+      <Input
+        value={search.query}
+        onChangeText={search.setQuery}
+        placeholder='Search, e.g. "banana" or "peanut butter clif bar"'
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoFocus
+        returnKeyType="search"
+        accessibilityLabel="Search foods"
+      />
+
+      {search.loading ? <ActivityIndicator style={styles.spinner} /> : null}
+      {search.error ? (
+        <Text style={styles.error} accessibilityRole="alert">
+          {search.error}
+        </Text>
+      ) : null}
+      {search.warnings.map((warning) => (
+        <Text key={warning} style={styles.warning}>
+          {warning}
+        </Text>
+      ))}
+
+      {search.saved.map((food) => (
+        <Row
+          key={food.id}
+          name={displayName(food)}
+          line={resultLine(food)}
+          tag="Saved"
+          onPress={() =>
+            setStep({ kind: "detail", picked: { kind: "saved", food } })
+          }
+        />
+      ))}
+      {search.results.map((food: FoodCandidate) => (
+        <Row
+          key={`${food.source}:${food.source_id}`}
+          name={displayName(food)}
+          line={resultLine(food)}
+          onPress={() =>
+            setStep({ kind: "detail", picked: { kind: "candidate", food } })
+          }
+        />
+      ))}
+
+      {nothingFound ? (
+        <Text style={styles.empty}>Nothing found. Try other words.</Text>
+      ) : null}
+      {search.hasMore && !search.loading ? (
+        <Button title="Show more" onPress={search.loadMore} secondary />
+      ) : null}
+
+      <View style={styles.manual}>
+        <Button
+          title="Add a food by hand"
+          onPress={() =>
+            setStep({
+              kind: "manual",
+              initial: { ...EMPTY_MANUAL, name: search.query.trim() },
+              correcting: false,
+            })
+          }
+          secondary
+        />
+      </View>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: "#ffffff" },
+  content: { paddingHorizontal: 20 },
+  title: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#111111",
+    marginVertical: 16,
+  },
+  spinner: { marginTop: 12 },
+  error: { fontSize: 15, color: "#b00020", marginTop: 10 },
+  warning: { fontSize: 14, color: "#7a5a00", marginTop: 8 },
+  empty: { fontSize: 16, color: "#555555", marginTop: 16, textAlign: "center" },
+  row: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#dddddd",
+  },
+  rowPressed: { backgroundColor: "#f3f3f3" },
+  rowName: { fontSize: 17, fontWeight: "600", color: "#111111" },
+  rowBrand: { fontSize: 14, color: "#555555", marginTop: 2 },
+  rowLine: { fontSize: 14, color: "#333333", marginTop: 2 },
+  manual: { marginTop: 24 },
+});

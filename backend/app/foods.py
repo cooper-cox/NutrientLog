@@ -6,6 +6,7 @@ from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.calc.food_check import check_food, clean_text
+from app.calc.food_names import brand_key
 from app.calc.food_rank import Rankable, duplicate_key, full_matches, rank, words
 from app.calc.goals import InvalidInputError, Problem
 from app.calc.nutrients import KEYS, energy_mismatch, scale_nutrients
@@ -28,7 +29,7 @@ def _save_food(session: Session, food: Food) -> Food:
     return food
 
 
-def _find_visible(session: Session, user_id: uuid.UUID, food_id: uuid.UUID) -> Food | None:
+def find_visible(session: Session, user_id: uuid.UUID, food_id: uuid.UUID) -> Food | None:
     """A food this user may see: their own, or a shared one (no owner)."""
     statement = select(Food).where(
         Food.id == food_id, (Food.owner_user_id == user_id) | Food.owner_user_id.is_(None)
@@ -169,7 +170,7 @@ def create_food(session: Session, user: User, data: FoodIn) -> tuple[Food, bool]
 
 
 def get_food(session: Session, user: User, food_id: uuid.UUID) -> Food | None:
-    return _find_visible(session, user.id, food_id)
+    return find_visible(session, user.id, food_id)
 
 
 def _barcode_key(candidate: FoodCandidate) -> str | None:
@@ -204,15 +205,36 @@ def merge_duplicates(candidates: list[FoodCandidate]) -> list[FoodCandidate]:
     return merged
 
 
+def _same_label(candidate: FoodCandidate) -> tuple[object, ...] | None:
+    """What a package label says: brand, serving size and calories, protein, fat, carbs (rounded).
+
+    Two packaged products from the same brand with the same label are the same product to the
+    person, however the database words the name ("Nut Butter Bar, Peanut Butter" and "Peanut
+    Butter Nut Butter Bar"). Returns None when there is no brand or the numbers are missing.
+    """
+    brand = brand_key(candidate.brand)
+    nutrients = [candidate.nutrients.get(k) for k in ("calories", "protein_g", "fat_g", "carb_g")]
+    if brand is None or any(value is None for value in nutrients):
+        return None
+    serving = candidate.servings[0].grams if candidate.servings else None
+    return (
+        brand,
+        *(round(value or 0.0) for value in nutrients),
+        None if serving is None else round(serving),
+    )
+
+
 def collapse_lookalikes(candidates: list[FoodCandidate]) -> list[FoodCandidate]:
-    """Keep the first of results that are the same product listed more than once.
+    """Keep one of results that are the same product listed more than once.
 
     The database holds one record per package size ("12 OUNCE", "28 Ounce") with identical
     nutrition; showing all of them would fill the screen with the same food. A plain food
-    with the same name in several USDA datasets is also shown once (the first one listed).
+    with the same name in several USDA datasets is also shown once (the first one listed), and
+    packaged products with the same brand and the same label show once, under the shortest name.
     """
     seen: set[object] = set()
     kept: list[FoodCandidate] = []
+    label_at: dict[object, int] = {}
     for candidate in candidates:
         serving = candidate.servings[0].grams if candidate.servings else None
         key: object = duplicate_key(
@@ -221,9 +243,18 @@ def collapse_lookalikes(candidates: list[FoodCandidate]) -> list[FoodCandidate]:
         if candidate.is_generic:
             # USDA's separate datasets each list "Broccoli, raw" with slightly different numbers.
             key = ("plain food", candidate.name.lower())
-        if key not in seen:
-            seen.add(key)
-            kept.append(candidate)
+        if key in seen:
+            continue
+        seen.add(key)
+        label = None if candidate.is_generic else _same_label(candidate)
+        if label is not None and label in label_at:
+            index = label_at[label]
+            if len(words(candidate.name)) < len(words(kept[index].name)):
+                kept[index] = candidate  # the simpler name takes the place of the first copy
+            continue
+        if label is not None:
+            label_at[label] = len(kept)
+        kept.append(candidate)
     return kept
 
 

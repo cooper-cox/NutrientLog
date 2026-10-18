@@ -1,4 +1,4 @@
-"""The database tables: users, settings, goals, and foods with nutrients and servings."""
+"""The database tables: users, settings, goals, foods with nutrients and servings, and the log."""
 
 import uuid
 from datetime import date, datetime
@@ -150,3 +150,26 @@ class FoodServing(Base):
     label: Mapped[str] = mapped_column(String(60))
     grams: Mapped[float] = mapped_column(Float)
     position: Mapped[int] = mapped_column(default=0)
+
+
+class LogEntry(Base):
+    """One thing someone ate: a food, an amount in grams, on a calendar day.
+
+    `logged_on` is the person's own local date when they logged it (not UTC), so "today" matches
+    what they see on their phone. `amount_text` is what they typed ("1/2 cup"), shown back to
+    them; the grams are what counts. Nutrients are worked out from the food when read.
+    """
+
+    __tablename__ = "log_entries"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    food_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("foods.id", ondelete="RESTRICT"))
+    logged_on: Mapped[date] = mapped_column(Date, index=True)
+    grams: Mapped[float]
+    amount_text: Mapped[str | None] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    food: Mapped[Food] = relationship(lazy="joined")
