@@ -6,7 +6,7 @@ import pytest
 
 from app.calc.nutrients import KEYS
 from app.sources import FoodSourceError
-from app.sources.usda import UsdaClient, map_food, map_nutrients
+from app.sources.usda import UsdaClient, map_food, map_nutrients, map_portions
 
 
 def row(number: str, unit: str, value: float) -> dict[str, Any]:
@@ -443,3 +443,97 @@ def test_a_failed_group_and_a_retry_are_written_down_for_the_developer_report() 
     # A clean search starts with no notes.
     client.search("y", 5)
     assert client.notes != []  # the generic group fails again, and says so
+
+
+# --- household measures ---
+
+
+def _portion(**fields: Any) -> dict[str, Any]:
+    return {"gramWeight": 100.0, **fields}
+
+
+def test_portions_written_as_a_sentence_amount_and_unit_or_size_word() -> None:
+    found = map_portions(
+        {
+            "foodPortions": [
+                _portion(portionDescription="1 cup", gramWeight=244.0, modifier="10205"),
+                _portion(
+                    amount=1.0, measureUnit={"name": "cup"}, modifier="chopped", gramWeight=125
+                ),
+                _portion(
+                    amount=1.0,
+                    measureUnit={"name": "undetermined"},
+                    modifier='medium (7" long)',
+                    gramWeight=118,
+                ),
+                _portion(amount=2.0, measureUnit={"name": "tbsp"}, modifier="10205", gramWeight=32),
+            ]
+        }
+    )
+    assert [(s.label, s.grams) for s in found] == [
+        ("1 cup (244 g)", 244.0),
+        ("1 cup chopped (125 g)", 125.0),
+        ("1 medium (118 g)", 118.0),
+        ("2 tbsp (32 g)", 32.0),
+    ]
+
+
+def test_unusable_portions_are_skipped_not_guessed() -> None:
+    found = map_portions(
+        {
+            "foodPortions": [
+                _portion(portionDescription="Quantity not specified"),
+                _portion(portionDescription="1 cup", gramWeight=0),
+                _portion(portionDescription="1 cup", gramWeight=None),
+                _portion(portionDescription="1 cup", gramWeight=99999),
+                _portion(amount=1, measureUnit={"name": "undetermined"}, modifier="10205"),
+                _portion(
+                    portionDescription="Guideline amount per cup of hot cereal", gramWeight=61
+                ),
+                _portion(amount=1, measureUnit={"name": "RACC"}, gramWeight=30),
+                _portion(portionDescription="1 RACC", gramWeight=30),
+                _portion(portionDescription="1 slice", gramWeight=28),
+                _portion(portionDescription="1 slice", gramWeight=28),  # same again
+                "not a portion",
+            ]
+        }
+    )
+    assert [s.label for s in found] == ["1 slice (28 g)"]
+
+
+def test_no_portions_at_all() -> None:
+    assert map_portions({}) == []
+    assert map_portions({"foodPortions": "x"}) == []
+
+
+def test_a_long_description_is_cut_so_the_weight_stays_on_the_label() -> None:
+    (found,) = map_portions(
+        {"foodPortions": [_portion(portionDescription="x" * 200, gramWeight=12.5)]}
+    )
+    assert len(found.label) <= 60 and found.label.endswith("(12.5 g)")
+
+
+def test_measures_are_fetched_from_the_food_detail_with_the_key_in_a_header() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"foodPortions": [_portion(portionDescription="1 cup")]})
+
+    found = client_replying(handler).measures("1105073")
+    assert [s.label for s in found] == ["1 cup (100 g)"]
+    assert seen[0].method == "GET" and seen[0].url.path.endswith("/food/1105073")
+    assert "secret-key" not in str(seen[0].url) and seen[0].headers["x-api-key"] == "secret-key"
+
+
+def test_measures_for_an_unknown_food_are_empty_and_a_bad_id_is_refused() -> None:
+    assert client_replying(lambda r: httpx.Response(404, json={})).measures("1") == []
+    with pytest.raises(FoodSourceError):
+        client_replying(lambda r: httpx.Response(200, json={})).measures("../x")
+
+
+@pytest.mark.parametrize("status", [401, 500])
+def test_measures_report_a_database_problem(status: int) -> None:
+    with pytest.raises(FoodSourceError) as caught:
+        client_replying(lambda r: httpx.Response(status, text="no")).measures("1")
+    assert caught.value.detail and f"HTTP {status}" in caught.value.detail

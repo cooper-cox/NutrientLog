@@ -190,3 +190,23 @@ class HealthResponse(BaseModel):
 class DatabaseHealthResponse(BaseModel):
     status: str
     database: str
+
+
+class MeasuresOut(BaseModel):
+    """A food's household measures from its database, ready to save with the food."""
+
+    servings: list[ServingIn]
+
+
+class AmountIn(BaseModel):
+    """What was typed ("1/2 cup flour") and what is known about the food, to turn into grams."""
+
+    text: str = Field(min_length=1, max_length=100)
+    food_name: str = Field(default="", max_length=200)
+    servings: list[ServingIn] = Field(default_factory=list, max_length=50)
+
+
+class AmountOut(BaseModel):
+    grams: float
+    quantity: float
+    unit: str | None

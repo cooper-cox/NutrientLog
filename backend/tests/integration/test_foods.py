@@ -31,6 +31,13 @@ class FakeSource:
         self.has_more = False
         self.error: FoodSourceError | None = None
         self.results: list[FoodCandidate] = []
+        self.measures_found: list[ServingCandidate] = []
+        self.measures_error: FoodSourceError | None = None
+
+    def measures(self, source_id: str) -> list[ServingCandidate]:
+        if self.measures_error is not None:
+            raise self.measures_error
+        return list(self.measures_found)
 
     def search(self, query: str, limit: int, page: int = 1) -> FoodPage:
         self.asked.append((query, limit, page))
@@ -511,3 +518,58 @@ def test_a_plain_food_listed_in_several_usda_datasets_is_shown_once(
     usda.results = [plain("1", 39.0), plain("2", 31.0), plain("3", 34.0)]
     body = client.get(f"{BASE}/search", params={"q": "broccoli"}, headers=auth).json()
     assert [food["source_id"] for food in body["results"]] == ["1"]
+
+
+# --- measures and amounts ---
+
+MEASURES = "/api/v1/foods/measures"
+TO_GRAMS = "/api/v1/amounts/to-grams"
+
+
+def test_measures_come_from_the_chosen_database(
+    client: TestClient, auth: dict[str, str], usda: FakeSource
+) -> None:
+    usda.measures_found = [ServingCandidate("1 cup (125 g)", 125.0)]
+    reply = client.get(f"{MEASURES}?source=usda&source_id=250", headers=auth)
+    assert reply.status_code == 200
+    assert reply.json() == {"servings": [{"label": "1 cup (125 g)", "grams": 125.0}]}
+
+
+def test_measures_for_a_database_that_is_off_or_down(
+    client: TestClient, auth: dict[str, str], usda: FakeSource
+) -> None:
+    assert client.get(f"{MEASURES}?source=off&source_id=1", headers=auth).status_code == 404
+
+    usda.measures_error = FoodSourceError("The USDA food database had a problem. Try again later.")
+    reply = client.get(f"{MEASURES}?source=usda&source_id=1", headers=auth)
+    assert reply.status_code == 502 and "Try again later" in reply.json()["detail"]
+
+
+def test_measures_and_amounts_need_a_token(client: TestClient) -> None:
+    assert client.get(f"{MEASURES}?source=usda&source_id=1").status_code == 401
+    assert client.post(TO_GRAMS, json={"text": "1 g"}).status_code == 401
+
+
+def test_an_amount_becomes_grams(client: TestClient, auth: dict[str, str]) -> None:
+    body = {
+        "text": "1/2 cup flour",
+        "food_name": "Flour",
+        "servings": [{"label": "1 cup (125 g)", "grams": 125}],
+    }
+    reply = client.post(TO_GRAMS, headers=auth, json=body)
+    assert reply.status_code == 200
+    assert reply.json() == {"grams": 62.5, "quantity": 0.5, "unit": "cup"}
+    assert client.post(TO_GRAMS, headers=auth, json={"text": "8 oz"}).json()["grams"] == 226.8
+
+
+def test_an_amount_that_cannot_be_worked_out_says_why(
+    client: TestClient, auth: dict[str, str]
+) -> None:
+    density = client.post(TO_GRAMS, headers=auth, json={"text": "1 cup", "food_name": "Clif Bar"})
+    assert density.status_code == 422 and density.json()["code"] == "unknown_density"
+    assert density.json()["errors"][0]["field"] == "text"
+    serving = client.post(TO_GRAMS, headers=auth, json={"text": "1 bowl"})
+    assert serving.status_code == 422 and serving.json()["code"] == "unknown_serving"
+    typo = client.post(TO_GRAMS, headers=auth, json={"text": "flour"})
+    assert typo.status_code == 422 and typo.json()["code"] == "bad_amount"
+    assert client.post(TO_GRAMS, headers=auth, json={"text": ""}).status_code == 422

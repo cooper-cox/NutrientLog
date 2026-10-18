@@ -18,15 +18,24 @@ Kind = Literal["mass", "volume", "named"]
 
 
 class AmountError(ValueError):
-    """The amount can't be understood or turned into grams. The message is safe to show."""
+    """The amount can't be understood or turned into grams. The message is safe to show.
+
+    `code` lets the phone react (for example offer grams when the density is unknown).
+    """
+
+    code = "bad_amount"
 
 
 class UnknownDensity(AmountError):
     """A volume was given, but nothing says how heavy this food is per cup, spoon or millilitre."""
 
+    code = "unknown_density"
+
 
 class UnknownServing(AmountError):
     """A named amount ("1 bar") was given, but the food has no serving with that name."""
+
+    code = "unknown_serving"
 
 
 # grams per unit (mass) or millilitres per unit (volume). US customary volumes.
@@ -128,7 +137,7 @@ def parse_amount(text: str) -> Amount:
         if words[1].lower() in ("oz", "ounce", "ounces"):
             unit, words = "fl oz", words[2:]
     if unit is None and words:
-        first = words[0].lower()
+        first = words[0].lower().rstrip(",;:")
         if first in _ALIASES:
             unit, words = _ALIASES[first], words[1:]
         else:
@@ -234,4 +243,7 @@ def to_grams(amount: Amount, measures: FoodMeasures | None = None, *, food_name:
         return amount.quantity * measures.named[unit]
     if unit == "serving" and len(measures.named) == 1:
         return amount.quantity * next(iter(measures.named.values()))
+    if measures.named:
+        choices = ", ".join(f"'{name}'" for name in measures.named)
+        raise UnknownServing(f"This food has no serving called '{unit}'. Try {choices}, or grams.")
     raise UnknownServing(f"This food has no serving called '{unit}'. Try grams or ounces.")
