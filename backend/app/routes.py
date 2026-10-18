@@ -17,9 +17,12 @@ from sqlalchemy.orm import Session
 
 from app import auth, foods, profiles
 from app.auth import CurrentUser
+from app.calc.measures import measures_from_servings, parse_amount, to_grams
 from app.calc.profile_check import limits
 from app.db import get_session
 from app.schemas import (
+    AmountIn,
+    AmountOut,
     DatabaseHealthResponse,
     FoodIn,
     FoodOut,
@@ -27,13 +30,15 @@ from app.schemas import (
     GoalOut,
     HealthResponse,
     LimitsOut,
+    MeasuresOut,
     ProfileIn,
     ProfileOut,
     ProfileSaved,
+    ServingIn,
     UserCreated,
 )
 from app.settings import settings
-from app.sources import FoodSource
+from app.sources import FoodSource, FoodSourceError
 from app.sources.openfoodfacts import OpenFoodFactsClient
 from app.sources.usda import UsdaClient
 
@@ -174,6 +179,41 @@ def search_foods(
     the next `page` for more.
     """
     return foods.search_foods(session, user, q, sources, page)
+
+
+@v1.get("/foods/measures", response_model=MeasuresOut, tags=["foods"])
+def food_measures(
+    user: CurrentUser,
+    sources: Annotated[list[FoodSource], Depends(get_food_sources)],
+    source: Annotated[str, Query(description="Where the food came from, e.g. 'usda'")],
+    source_id: Annotated[str, Query(max_length=40, description="The database's own food id")],
+) -> MeasuresOut:
+    """A search result's own household measures ("1 medium = 118 g"), to save with the food.
+
+    Ask when someone picks a result, then send the measures along with it in POST /foods.
+    """
+    chosen = next((item for item in sources if item.name == source), None)
+    if chosen is None:
+        raise HTTPException(status_code=404, detail="That food database is not available.")
+    try:
+        found = chosen.measures(source_id)
+    except FoodSourceError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+    return MeasuresOut(servings=[ServingIn(label=m.label, grams=m.grams) for m in found])
+
+
+@v1.post("/amounts/to-grams", response_model=AmountOut, tags=["foods"])
+def amount_to_grams(data: AmountIn, user: CurrentUser) -> AmountOut:
+    """Turn a typed amount ("1/2 cup flour", "8 oz", "2 bars") into grams.
+
+    Send what is known about the food (its name and servings) so cups and spoons can be worked
+    out. If that is not enough, the answer is a 422 with a `code` ("unknown_density" or
+    "unknown_serving") rather than a guess.
+    """
+    amount = parse_amount(data.text)
+    measures = measures_from_servings([(item.label, item.grams) for item in data.servings])
+    grams = to_grams(amount, measures, food_name=data.food_name)
+    return AmountOut(grams=round(grams, 2), quantity=amount.quantity, unit=amount.unit)
 
 
 @v1.get("/foods/{food_id}", response_model=FoodOut, tags=["foods"])

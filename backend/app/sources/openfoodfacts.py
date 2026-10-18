@@ -158,6 +158,10 @@ class OpenFoodFactsClient:
         self._base_url = base_url.rstrip("/")
         self._client = client or httpx.Client(timeout=timeout_seconds)
 
+    def measures(self, source_id: str) -> list[ServingCandidate]:
+        """Open Food Facts products carry only their one package serving, already in the search."""
+        return []
+
     def search(self, query: str, limit: int, page: int = 1) -> FoodPage:
         if time.monotonic() < self._down_until:
             raise FoodSourceError(

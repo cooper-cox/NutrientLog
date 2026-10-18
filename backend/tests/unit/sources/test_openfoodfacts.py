@@ -262,3 +262,7 @@ def test_with_no_cool_down_every_search_asks_the_service() -> None:
         with pytest.raises(FoodSourceError):
             client.search("x", 5)
     assert len(calls) == 2
+
+
+def test_open_food_facts_has_no_household_measures() -> None:
+    assert OpenFoodFactsClient().measures("123") == []

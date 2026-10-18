@@ -146,6 +146,67 @@ def _serving(raw: dict[str, Any]) -> list[ServingCandidate]:
     return [ServingCandidate(label=label[:60], grams=float(size))]
 
 
+MAX_MEASURES = 20
+_NO_UNIT = frozenset({"", "undetermined", "unknown"})
+# Labels USDA files with the measures that are paperwork, not something a person can eat or pour.
+_NOT_A_MEASURE = ("quantity not specified", "guideline amount")
+_PAREN = re.compile(r"\s*\(.*$")
+
+
+def _count(amount: float) -> str:
+    return f"{amount:g}"
+
+
+def map_portions(raw: dict[str, Any]) -> list[ServingCandidate]:
+    """The household measures in a USDA food's detail ("1 cup = 125 g", "1 medium = 118 g").
+
+    USDA writes them three ways: a ready sentence (`portionDescription`), a number plus a unit
+    name (`amount` + `measureUnit`), or a number plus a size word (`modifier`: "medium"). A
+    modifier that is only a code ("10205") and entries like "Quantity not specified" are
+    skipped, as are "Guideline amount per ..." and "RACC" entries (labelling paperwork).
+    Anything without a usable weight in grams is skipped, never guessed.
+    """
+    portions = raw.get("foodPortions")
+    if not isinstance(portions, list):
+        return []
+    found: list[ServingCandidate] = []
+    seen: set[str] = set()
+    for portion in portions:
+        if not isinstance(portion, dict):
+            continue
+        grams = portion.get("gramWeight")
+        if not isinstance(grams, int | float) or isinstance(grams, bool):
+            continue
+        if not 0 < grams <= MAX_SERVING_GRAMS:
+            continue
+        description = _PAREN.sub("", str(portion.get("portionDescription") or "")).strip()
+        if description.lower().startswith(_NOT_A_MEASURE):
+            continue
+        if not description:
+            amount = portion.get("amount")
+            number = amount if isinstance(amount, int | float) and amount > 0 else 1
+            unit_info = portion.get("measureUnit")
+            unit = str(unit_info.get("name") or "") if isinstance(unit_info, dict) else ""
+            unit = "" if unit.lower() in _NO_UNIT else unit
+            modifier = _PAREN.sub("", str(portion.get("modifier") or "")).strip()
+            modifier = "" if modifier.isdigit() else modifier
+            words = " ".join(part for part in (unit, modifier) if part)
+            if not words:
+                continue
+            description = f"{_count(float(number))} {words}"
+        if re.search(r"\bracc\b", description, re.I):  # "Reference Amount Customarily Consumed"
+            continue
+        suffix = f" ({grams:g} g)"
+        label = description[: 60 - len(suffix)].rstrip() + suffix
+        if label.lower() in seen:
+            continue
+        seen.add(label.lower())
+        found.append(ServingCandidate(label=label, grams=float(grams)))
+        if len(found) >= MAX_MEASURES:
+            break
+    return found
+
+
 def map_food(raw: dict[str, Any]) -> FoodCandidate | None:
     """One USDA search result as a FoodCandidate, or None if it can't be used.
 
@@ -196,6 +257,35 @@ class UsdaClient:
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
         self._client = client or httpx.Client(timeout=timeout_seconds)
+
+    def measures(self, source_id: str) -> list[ServingCandidate]:
+        """One food's household measures, from its detail page. Raises FoodSourceError."""
+        if not source_id.isdigit():
+            raise FoodSourceError("That is not a USDA food number.")
+        try:
+            response = self._client.get(
+                f"{self._base_url}/food/{source_id}", headers={"X-Api-Key": self._api_key}
+            )
+        except httpx.TimeoutException as error:
+            raise FoodSourceError("The USDA food database took too long to answer.") from error
+        except httpx.HTTPError as error:
+            raise FoodSourceError("Could not reach the USDA food database.") from error
+        if response.status_code == 404:
+            return []
+        if response.status_code in (401, 403):
+            raise FoodSourceError(
+                "The USDA food database refused our key.", f"HTTP {response.status_code}"
+            )
+        if response.status_code != 200:
+            raise FoodSourceError(
+                "The USDA food database had a problem. Try again later.",
+                f"HTTP {response.status_code}{reply_snippet(response.text)}",
+            )
+        try:
+            body = response.json()
+        except ValueError as error:
+            raise FoodSourceError("The USDA food database sent something unexpected.") from error
+        return map_portions(body) if isinstance(body, dict) else []
 
     def search(self, query: str, limit: int, page: int = 1) -> FoodPage:
         """Plain foods and packaged products, searched separately and interleaved.

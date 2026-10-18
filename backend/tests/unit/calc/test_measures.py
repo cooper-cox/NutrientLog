@@ -125,6 +125,12 @@ def test_an_unknown_serving_name_is_reported() -> None:
         to_grams(parse_amount("1 serving"), None)
 
 
+def test_an_unknown_serving_lists_the_ones_the_food_has() -> None:
+    measures = measures_from_servings([("1 medium (118 g)", 118), ("1 large (136 g)", 136)])
+    with pytest.raises(UnknownServing, match="'medium', 'large'"):
+        to_grams(parse_amount("2 bananas"), measures)
+
+
 def test_servings_without_a_usable_label_are_skipped() -> None:
     measures = measures_from_servings(
         [("big (50 g)", 50), ("1 cup (0 g)", 0), ("1 slice (28 g)", 28)]

@@ -68,6 +68,13 @@ class FoodSource(Protocol):
         """
         ...
 
+    def measures(self, source_id: str) -> list[ServingCandidate]:
+        """The food's own household measures ("1 medium = 118 g"), or [] if the source has none.
+
+        May raise FoodSourceError.
+        """
+        ...
+
 
 def reply_snippet(text: str) -> str:
     """The start of an error reply on one line, for the developer (": ..."), or "" if empty.

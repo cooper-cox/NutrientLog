@@ -18,7 +18,7 @@ import time
 
 from app.foods import gather_and_rank, serving_out
 from app.settings import settings
-from app.sources import FoodCandidate, FoodPage, FoodSource, FoodSourceError
+from app.sources import FoodCandidate, FoodPage, FoodSource, FoodSourceError, ServingCandidate
 from app.sources.openfoodfacts import OpenFoodFactsClient
 from app.sources.usda import UsdaClient
 
@@ -115,6 +115,9 @@ class Recorder:
         self.last: FoodPage | FoodSourceError | None = None
         self.notes: list[str] = []
         self._last_call = 0.0
+
+    def measures(self, source_id: str) -> list[ServingCandidate]:
+        return self._source.measures(source_id)
 
     def search(self, query: str, limit: int, page: int = 1) -> FoodPage:
         wait = PAUSE_SECONDS.get(self.name, 0.0) - (time.monotonic() - self._last_call)
