@@ -1,0 +1,9 @@
+# Settings for the secret scanner (gitleaks), which runs on every push.
+# It starts from gitleaks' standard rules and adds one exception.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "'nutrient_key' is the name of a nutrient (like 'calories'), not a secret key"
+regexTarget = "line"
+regexes = ['''nutrient_key''']
