@@ -19,6 +19,7 @@ from app.sources import (
     FoodCandidate,
     FoodPage,
     FoodSourceError,
+    SearchCache,
     ServingCandidate,
     reply_snippet,
 )
@@ -252,8 +253,10 @@ class UsdaClient:
         timeout_seconds: float = settings.search.timeout_seconds,
         client: httpx.Client | None = None,
         retry_waits: tuple[float, ...] = RETRY_WAITS,
+        cache_seconds: float = settings.search.cache_seconds,
     ) -> None:
         self._retry_waits = retry_waits
+        self._cache = SearchCache(cache_seconds)
         # What went wrong or was retried during the latest search, for the developer's report
         # (the search itself still returns whatever it could find).
         self.notes: list[str] = []
@@ -297,6 +300,15 @@ class UsdaClient:
         the words follow (USDA's "every word" mode is strict: one odd word hides a good match).
         """
         self.notes = []
+        cache_key = (query.lower(), limit, page)
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            return cached
+        found = self._search_uncached(query, limit, page)
+        self._cache.put(cache_key, found)
+        return found
+
+    def _search_uncached(self, query: str, limit: int, page: int) -> FoodPage:
         groups = [(GENERIC_TYPES, min(limit, GENERIC_LIMIT)), (BRANDED_TYPES, limit)]
         with ThreadPoolExecutor(max_workers=len(groups)) as pool:
             futures = [pool.submit(self._group, query, types, size, page) for types, size in groups]
@@ -318,10 +330,23 @@ class UsdaClient:
         return FoodPage(mixed, any(group.has_more for group in pages))
 
     def _group(self, query: str, data_types: str, limit: int, page: int) -> FoodPage:
-        strict = self._ask(query, data_types, limit, page, require_all=True)
-        if page > 1 or len(strict.foods) >= min(limit, LOOSE_BELOW):
-            return strict
-        loose = self._ask(query, data_types, limit, page, require_all=False)
+        if page > 1:
+            return self._ask(query, data_types, limit, page, require_all=True)
+        # The partial-match search is sent at the same moment as the strict one (not after it,
+        # which made every thin search take twice as long). Its answer is only used if the strict
+        # one found few, and if it fails the strict answer still stands.
+        pool = ThreadPoolExecutor(max_workers=1)
+        try:
+            loose_future = pool.submit(self._ask, query, data_types, limit, page, False)
+            strict = self._ask(query, data_types, limit, page, require_all=True)
+            if len(strict.foods) >= min(limit, LOOSE_BELOW):
+                return strict
+            try:
+                loose = loose_future.result()
+            except FoodSourceError:
+                return strict
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
         seen = {food.source_id for food in strict.foods}
         extra = [food for food in loose.foods if food.source_id not in seen]
         # The merged list is already one big page, so there is no "next page" to offer.

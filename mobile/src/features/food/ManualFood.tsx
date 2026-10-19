@@ -17,7 +17,12 @@ type Props = {
 };
 
 /** The failsafe: type in a food from its package label (numbers "per serving"). */
-export function ManualFood({ initial, correcting = false, onSaved, onBack }: Props) {
+export function ManualFood({
+  initial,
+  correcting = false,
+  onSaved,
+  onBack,
+}: Props) {
   const insets = useSafeAreaInsets();
   const [form, setForm] = useState<ManualForm>(initial);
   const [message, setMessage] = useState<string | null>(null);
@@ -47,6 +52,7 @@ export function ManualFood({ initial, correcting = false, onSaved, onBack }: Pro
   return (
     <ScrollView
       keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
       style={styles.screen}
       contentContainerStyle={[
         styles.content,

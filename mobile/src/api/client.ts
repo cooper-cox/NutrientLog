@@ -36,7 +36,7 @@ export type RequestOptions = {
   body?: unknown;
 };
 
-type Method = "GET" | "POST" | "PUT" | "DELETE";
+type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 const DEFAULT_TIMEOUT_MS = 8000;
 

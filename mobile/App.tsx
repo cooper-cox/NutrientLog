@@ -18,6 +18,8 @@ function Screens() {
   const [page, setPage] = useState<"home" | "add" | "targets">("home");
   // Bumped when food is added, so the home screen reloads today.
   const [added, setAdded] = useState(0);
+  // The day being looked at (YYYY-MM-DD); null is today. Kept here so Add food adds to it.
+  const [viewDate, setViewDate] = useState<string | null>(null);
   const [checkingConnection, setCheckingConnection] = useState(false);
 
   if (checkingConnection) {
@@ -64,6 +66,7 @@ function Screens() {
         />
       ) : page === "add" ? (
         <AddFoodScreen
+          date={viewDate}
           onAdded={() => {
             setAdded((count) => count + 1);
             setPage("home");
@@ -83,6 +86,8 @@ function Screens() {
           profile={state.profile}
           goal={state.goal}
           reloadKey={added}
+          date={viewDate}
+          onDateChange={setViewDate}
           onAddFood={() => setPage("add")}
           onShowTargets={() => setPage("targets")}
         />

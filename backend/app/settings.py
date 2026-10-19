@@ -45,6 +45,8 @@ class Search(_Section):
     min_query_length: int = Field(ge=1, le=10)
     max_query_length: int = Field(ge=20, le=500)
     timeout_seconds: float = Field(gt=0, le=60)
+    deadline_seconds: float = Field(gt=0, le=60)
+    cache_seconds: float = Field(ge=0, le=86400)
     usda_generic_limit: int = Field(ge=1, le=200)
     usda_loose_below: int = Field(ge=1, le=200)
     usda_retry_waits: tuple[float, ...] = Field(max_length=5)

@@ -23,6 +23,8 @@ import { ManualFood } from "./ManualFood";
 import { useFoodSearch } from "./useFoodSearch";
 
 type Props = {
+  /** The day to add to (YYYY-MM-DD); null is today. */
+  date?: string | null;
   onAdded: () => void;
   onBack: () => void;
 };
@@ -58,7 +60,7 @@ function Row({
 }
 
 /** Find a food (one search box), pick an amount, add it to today. Or type one in by hand. */
-export function AddFoodScreen({ onAdded, onBack }: Props) {
+export function AddFoodScreen({ date = null, onAdded, onBack }: Props) {
   const insets = useSafeAreaInsets();
   const search = useFoodSearch();
   const [step, setStep] = useState<Step>({ kind: "search" });
@@ -67,6 +69,7 @@ export function AddFoodScreen({ onAdded, onBack }: Props) {
     return (
       <FoodDetail
         picked={step.picked}
+        date={date}
         onAdded={onAdded}
         onBack={() => setStep({ kind: "search" })}
         onFix={(initial: ManualForm) =>
@@ -98,6 +101,7 @@ export function AddFoodScreen({ onAdded, onBack }: Props) {
     <ScrollView
       style={styles.screen}
       keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
       contentContainerStyle={[
         styles.content,
         { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 },
@@ -119,6 +123,9 @@ export function AddFoodScreen({ onAdded, onBack }: Props) {
       />
 
       {search.loading ? <ActivityIndicator style={styles.spinner} /> : null}
+      {search.extending ? (
+        <Text style={styles.warning}>Checking one more database…</Text>
+      ) : null}
       {search.error ? (
         <Text style={styles.error} accessibilityRole="alert">
           {search.error}

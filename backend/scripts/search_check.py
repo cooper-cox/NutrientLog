@@ -15,6 +15,7 @@ minute, and USDA is also kinder when not rushed, so the script waits between its
 import re
 import sys
 import time
+from typing import Any
 
 from app.foods import gather_and_rank, serving_out
 from app.settings import settings
@@ -115,6 +116,7 @@ class Recorder:
         self.last: FoodPage | FoodSourceError | None = None
         self.notes: list[str] = []
         self._last_call = 0.0
+        self.took = 0.0  # seconds the latest real request took (not counting our own pacing)
 
     def measures(self, source_id: str) -> list[ServingCandidate]:
         return self._source.measures(source_id)
@@ -123,12 +125,14 @@ class Recorder:
         wait = PAUSE_SECONDS.get(self.name, 0.0) - (time.monotonic() - self._last_call)
         if wait > 0:
             time.sleep(wait)
+        started = time.monotonic()
         try:
             self.last = self._source.search(query, limit, page)
         except FoodSourceError as error:
             self.last = error
             raise
         finally:
+            self.took = time.monotonic() - started
             self.notes = list(getattr(self._source, "notes", []))
             self._last_call = time.monotonic()
         return self.last
@@ -168,13 +172,15 @@ def main() -> int:
     passed = 0
     gaps = 0
     inconclusive = 0
+    slowest_seen: list[Any] = [0.0, ""]
+    took_by_source: dict[str, list[float]] = {}
     # What a failing database actually said, with how many searches it said it for.
     complaints: dict[tuple[str, str], int] = {}
     for query, meaning, pattern in SEARCHES:
         for source in sources:
             source.last = None
             source.notes = []
-        ranked, statuses, _ = gather_and_rank(query, list(sources))
+        ranked, statuses, _ = gather_and_rank(query, list(sources), deadline_seconds=60.0)
         top = ranked[:SHOW]
         ok = any(re.search(pattern, f"{c.name} {c.brand or ''}".lower()) for c in top)
         gap = KNOWN_GAPS.get(query)
@@ -196,6 +202,15 @@ def main() -> int:
             if not status.available:
                 body.append(f"- **{status.name} failed:** {status.message}")
         asked = {status.name for status in statuses}
+        times = [f"{src.name} {src.took:.1f} s" for src in sources if src.name in asked]
+        if times:
+            body.append(f"- timing: {', '.join(times)}")
+            slowest = max((src.took for src in sources if src.name in asked), default=0.0)
+            for src in sources:
+                if src.name in asked:
+                    took_by_source.setdefault(src.name, []).append(src.took)
+            if slowest > slowest_seen[0]:
+                slowest_seen[:] = [slowest, query]
         for source in sources:
             if source.name not in asked:
                 body.append(f"- {source.name}: not asked (the main database found enough)")
@@ -227,6 +242,18 @@ def main() -> int:
         print(f"Inconclusive, a database was down (not counted; run again later): {inconclusive}.")
     if gaps:
         print(f"Known gaps (listed below, not counted): {gaps}.")
+    for source_name, durations in took_by_source.items():
+        ordered = sorted(durations)
+        middle = ordered[len(ordered) // 2]
+        print(
+            f"Typical {source_name} answer: {middle:.1f} s (median of {len(ordered)}), "
+            f"slowest {ordered[-1]:.1f} s."
+        )
+    if slowest_seen[1]:
+        print(
+            f'Slowest single database answer: {slowest_seen[0]:.1f} s (for "{slowest_seen[1]}"). '
+            "Each search's own timing is listed under it."
+        )
     print()
     if complaints:
         print("## Databases that failed\n")

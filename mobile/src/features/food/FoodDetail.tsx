@@ -1,3 +1,4 @@
+import { shortDate } from "../home/dates";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -34,6 +35,8 @@ const WAIT_MS = 350;
 
 type Props = {
   picked: PickedFood;
+  /** The day to add to (YYYY-MM-DD); null is today. */
+  date?: string | null;
   onAdded: () => void;
   onBack: () => void;
   /** Open the correction form, filled in with this food's numbers. */
@@ -45,7 +48,13 @@ function gramsText(value: number | null): string {
 }
 
 /** One food: type an amount in any unit, see what it contains, add it to today. */
-export function FoodDetail({ picked, onAdded, onBack, onFix }: Props) {
+export function FoodDetail({
+  picked,
+  date = null,
+  onAdded,
+  onBack,
+  onFix,
+}: Props) {
   const insets = useSafeAreaInsets();
   const food = picked.food;
   const [servings, setServings] = useState<Serving[]>(food.servings);
@@ -131,7 +140,7 @@ export function FoodDetail({ picked, onAdded, onBack, onFix }: Props) {
         });
         foodId = savedFood.id;
       }
-      await addLogEntry(foodId, grams, text.trim());
+      await addLogEntry(foodId, grams, text.trim(), date ?? undefined);
       onAdded();
     } catch (error) {
       setAddError(
@@ -149,6 +158,7 @@ export function FoodDetail({ picked, onAdded, onBack, onFix }: Props) {
     <ScrollView
       style={styles.screen}
       keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
       contentContainerStyle={[
         styles.content,
         { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 },
@@ -221,7 +231,7 @@ export function FoodDetail({ picked, onAdded, onBack, onFix }: Props) {
         </Text>
       ) : null}
       <Button
-        title="Add to today"
+        title={date ? `Add to ${shortDate(date)}` : "Add to today"}
         onPress={() => void add()}
         disabled={!ready || adding}
       />

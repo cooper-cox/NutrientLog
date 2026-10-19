@@ -1,10 +1,11 @@
 /** Every call to the server, in one place: health checks, the limits, users, profile and goals. */
-import { apiGet, apiRequest } from './client';
+import { apiGet, apiRequest } from "./client";
 
-export type Sex = 'male' | 'female' | 'no_answer';
-export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active';
-export type GoalType = 'gain' | 'lose' | 'maintain';
-export type UnitPreference = 'metric' | 'imperial';
+export type Sex = "male" | "female" | "no_answer";
+export type ActivityLevel =
+  "sedentary" | "light" | "moderate" | "very_active" | "extra_active";
+export type GoalType = "gain" | "lose" | "maintain";
+export type UnitPreference = "metric" | "imperial";
 
 /** The survey answers. Always metric: the app converts if the person prefers lb and ft. */
 export type ProfileIn = {
@@ -44,19 +45,25 @@ export type ProfileSaved = { profile: Profile; goal: Goal };
 export type UserCreated = { user_id: string; token: string };
 
 export function createUser(): Promise<UserCreated> {
-  return apiRequest<UserCreated>('POST', '/api/v1/users');
+  return apiRequest<UserCreated>("POST", "/api/v1/users");
 }
 
 export function getProfile(token: string): Promise<Profile> {
-  return apiGet<Profile>('/api/v1/users/me/profile', { token });
+  return apiGet<Profile>("/api/v1/users/me/profile", { token });
 }
 
-export function saveProfile(token: string, answers: ProfileIn): Promise<ProfileSaved> {
-  return apiRequest<ProfileSaved>('PUT', '/api/v1/users/me/profile', { token, body: answers });
+export function saveProfile(
+  token: string,
+  answers: ProfileIn,
+): Promise<ProfileSaved> {
+  return apiRequest<ProfileSaved>("PUT", "/api/v1/users/me/profile", {
+    token,
+    body: answers,
+  });
 }
 
 export function getCurrentGoal(token: string): Promise<Goal> {
-  return apiGet<Goal>('/api/v1/goals/current', { token });
+  return apiGet<Goal>("/api/v1/goals/current", { token });
 }
 
 // --- health checks ---
@@ -72,12 +79,12 @@ export type DatabaseHealthResponse = {
 
 /** Is the API process up? */
 export function getHealth(): Promise<HealthResponse> {
-  return apiGet<HealthResponse>('/health');
+  return apiGet<HealthResponse>("/health");
 }
 
 /** Can the API reach its database? */
 export function getDatabaseHealth(): Promise<DatabaseHealthResponse> {
-  return apiGet<DatabaseHealthResponse>('/health/db');
+  return apiGet<DatabaseHealthResponse>("/health/db");
 }
 
 // --- limits ---
@@ -101,5 +108,5 @@ export type Limits = {
 };
 
 export function getLimits(): Promise<Limits> {
-  return apiGet<Limits>('/api/v1/limits');
+  return apiGet<Limits>("/api/v1/limits");
 }

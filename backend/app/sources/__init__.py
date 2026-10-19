@@ -5,6 +5,9 @@ the same two members, with no change to the service or the routes.
 """
 
 import re
+import threading
+import time
+from collections.abc import Hashable
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -74,6 +77,40 @@ class FoodSource(Protocol):
         May raise FoodSourceError.
         """
         ...
+
+
+class SearchCache:
+    """Remembers recent search answers in memory, so asking the same thing again is instant.
+
+    Only answers that worked are kept. They expire, so new foods still show up, and the cache
+    stays small. Foods are frozen records, so sharing them between searches is safe.
+    """
+
+    def __init__(self, seconds: float, max_items: int = 200) -> None:
+        self._seconds = seconds
+        self._max_items = max_items
+        self._items: dict[Hashable, tuple[float, FoodPage]] = {}
+        self._lock = threading.Lock()
+
+    def get(self, key: Hashable) -> FoodPage | None:
+        with self._lock:
+            hit = self._items.get(key)
+            if hit is None:
+                return None
+            saved_at, page = hit
+            if time.monotonic() - saved_at > self._seconds:
+                del self._items[key]
+                return None
+            return FoodPage(list(page.foods), page.has_more)
+
+    def put(self, key: Hashable, page: FoodPage) -> None:
+        if self._seconds <= 0:
+            return
+        with self._lock:
+            if len(self._items) >= self._max_items:
+                oldest = min(self._items, key=lambda k: self._items[k][0])
+                del self._items[oldest]
+            self._items[key] = (time.monotonic(), page)
 
 
 def reply_snippet(text: str) -> str:

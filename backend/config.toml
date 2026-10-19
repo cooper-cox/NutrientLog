@@ -30,11 +30,13 @@ enough_full_matches = 5        # fewer close matches than this: also ask the fal
 long_query_words = 3           # queries this long also ask the fallback database
 min_query_length = 2
 max_query_length = 100
-timeout_seconds = 8.0          # how long to wait for an outside database
+timeout_seconds = 5.0          # how long one request to an outside database may take
+deadline_seconds = 4.0         # a search answers by now with whatever has arrived (slow ones are skipped)
+cache_seconds = 600.0          # an identical search is answered from memory for this long
 usda_generic_limit = 60        # plain foods asked of USDA per search
 usda_loose_below = 10          # fewer strict USDA matches than this: also look for partial matches
 usda_retry_waits = [1.0, 3.0]  # seconds to wait before each retry
-off_retry_waits = [2.0, 5.0]
+off_retry_waits = [1.0, 2.0]
 off_cooldown_seconds = 60.0    # Open Food Facts is not asked again for this long after failing
 
 [food]

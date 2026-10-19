@@ -41,13 +41,19 @@ function oneDecimal(value: number): string {
  * calories and protein for one serving ("260 kcal · 11 g protein per 1 bar (68 g)"), or per
  * 100 g when the food has no serving.
  */
-export function resultLine(food: { nutrients: Nutrients; servings: Serving[] }): string {
+export function resultLine(food: {
+  nutrients: Nutrients;
+  servings: Serving[];
+}): string {
   const first = food.servings[0];
   const grams = first ? first.grams : 100;
-  const kcal = nutrientIn(food.nutrients, 'calories', grams);
-  const protein = nutrientIn(food.nutrients, 'protein_g', grams);
-  const proteinText = protein === null ? '' : ` · ${oneDecimal(protein)} g protein`;
-  const per = first ? `${servingAmountText(first.label) || 'serving'} (${oneDecimal(grams)} g)` : '100 g';
+  const kcal = nutrientIn(food.nutrients, "calories", grams);
+  const protein = nutrientIn(food.nutrients, "protein_g", grams);
+  const proteinText =
+    protein === null ? "" : ` · ${oneDecimal(protein)} g protein`;
+  const per = first
+    ? `${servingAmountText(first.label) || "serving"} (${oneDecimal(grams)} g)`
+    : "100 g";
   return `${kcalText(kcal)}${proteinText} per ${per}`;
 }
 
@@ -159,16 +165,18 @@ export function manualFormFrom(food: {
   const grams = first ? first.grams : 100;
   const text = (key: string) => {
     const value = nutrientIn(food.nutrients, key, grams);
-    return value === null ? '' : oneDecimal(value);
+    return value === null ? "" : oneDecimal(value);
   };
   return {
     name: food.name,
-    servingLabel: first ? servingAmountText(first.label) || '1 serving' : '100 g',
+    servingLabel: first
+      ? servingAmountText(first.label) || "1 serving"
+      : "100 g",
     servingGrams: oneDecimal(grams),
-    calories: text('calories'),
-    protein: text('protein_g'),
-    fat: text('fat_g'),
-    carbs: text('carb_g'),
+    calories: text("calories"),
+    protein: text("protein_g"),
+    fat: text("fat_g"),
+    carbs: text("carb_g"),
   };
 }
 
@@ -176,9 +184,14 @@ export function manualFormFrom(food: {
  * The name shown in lists: brand first, then the product and its flavour, so lookalikes read
  * clearly: "Clif Bar · Nut Butter Bar – Peanut Butter". Plain foods ("Bananas, raw") are as is.
  */
-export function displayName(food: { name: string; brand: string | null }): string {
-  const product = food.name.replace(/,\s*/, ' – ');
+export function displayName(food: {
+  name: string;
+  brand: string | null;
+}): string {
+  const product = food.name.replace(/,\s*/, " – ");
   const brand = food.brand?.trim();
   if (!brand) return food.name;
-  return food.name.toLowerCase().startsWith(brand.toLowerCase()) ? product : `${brand} · ${product}`;
+  return food.name.toLowerCase().startsWith(brand.toLowerCase())
+    ? product
+    : `${brand} · ${product}`;
 }
