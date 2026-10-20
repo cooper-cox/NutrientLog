@@ -247,7 +247,10 @@ def test_search_adds_usda_results_after_the_saved_ones(
     assert (serving["label"], serving["grams"]) == ("1 medium (118 g)", 118.0)
     # 52 kcal per 100 g, so 118 g holds 61.4: the app never has to do this maths itself.
     assert serving["nutrients"]["calories"] == 61.4
-    assert found["sources"] == [{"name": "usda", "available": True, "message": None}]
+    assert [(s["name"], s["available"], s["message"]) for s in found["sources"]] == [
+        ("usda", True, None)
+    ]
+    assert isinstance(found["sources"][0]["took_ms"], int)
     assert usda.asked == [("apple", 50, 1)]
 
 
@@ -461,6 +464,77 @@ def test_the_fallback_source_is_never_asked_for_later_pages(
     assert off.asked == []
 
 
+def test_a_fast_search_never_waits_for_the_fallback_and_says_more_is_coming(
+    client: TestClient, auth: dict[str, str], two_sources: tuple[FakeSource, SecondSource]
+) -> None:
+    usda, off = two_sources
+    usda.results = [candidate("1", "Banana variety")]  # few close matches: the fallback is wanted
+    off.results = [candidate_from("off", "9", "Banana", "9", 89.0)]
+    body = client.get(
+        f"{BASE}/search", params={"q": "banana", "scope": "fast"}, headers=auth
+    ).json()
+    assert off.asked == []
+    assert [item["name"] for item in body["sources"]] == ["usda"]
+    assert [food["source_id"] for food in body["results"]] == ["1"]
+    assert body["more_coming"] is True
+    # The follow-up (default scope) adds the slower database to the same ranked list.
+    full = client.get(f"{BASE}/search", params={"q": "banana"}, headers=auth).json()
+    assert off.asked == [("banana", 50, 1)]
+    assert {food["source_id"] for food in full["results"]} == {"1", "9"}
+    assert full["more_coming"] is False
+
+
+def test_a_fast_search_says_nothing_more_is_coming_when_the_fallback_is_not_wanted(
+    client: TestClient, auth: dict[str, str], two_sources: tuple[FakeSource, SecondSource]
+) -> None:
+    usda, off = two_sources
+    kinds = ["Cavendish", "Plantain", "Red", "Baby", "Dried", "Frozen"]
+    usda.results = [candidate(str(n), f"Banana {kind}") for n, kind in enumerate(kinds)]
+    body = client.get(
+        f"{BASE}/search", params={"q": "banana", "scope": "fast"}, headers=auth
+    ).json()
+    assert body["more_coming"] is False and off.asked == []
+
+
+def test_a_fast_search_for_a_long_query_also_says_more_is_coming(
+    client: TestClient, auth: dict[str, str], two_sources: tuple[FakeSource, SecondSource]
+) -> None:
+    usda, off = two_sources
+    usda.results = [candidate(str(n), f"Peanut butter clif bar {n}") for n in range(8)]
+    body = client.get(
+        f"{BASE}/search", params={"q": "peanut butter clif bar", "scope": "fast"}, headers=auth
+    ).json()
+    assert body["more_coming"] is True and off.asked == []
+
+
+def test_more_is_never_coming_when_there_is_no_fallback_database(
+    client: TestClient, auth: dict[str, str], usda: FakeSource
+) -> None:
+    usda.results = [candidate("1", "Banana variety")]
+    body = client.get(
+        f"{BASE}/search", params={"q": "banana", "scope": "fast"}, headers=auth
+    ).json()
+    assert body["more_coming"] is False
+
+
+def test_more_is_never_coming_after_page_one(
+    client: TestClient, auth: dict[str, str], two_sources: tuple[FakeSource, SecondSource]
+) -> None:
+    usda, _ = two_sources
+    usda.results = [candidate("1", "Banana variety")]
+    body = client.get(
+        f"{BASE}/search", params={"q": "banana", "scope": "fast", "page": 2}, headers=auth
+    ).json()
+    assert body["more_coming"] is False
+
+
+def test_an_unknown_scope_is_rejected(
+    client: TestClient, auth: dict[str, str], usda: FakeSource
+) -> None:
+    reply = client.get(f"{BASE}/search", params={"q": "banana", "scope": "slow"}, headers=auth)
+    assert reply.status_code == 422
+
+
 def test_the_same_product_in_several_pack_sizes_is_listed_once(
     client: TestClient, auth: dict[str, str], usda: FakeSource
 ) -> None:
@@ -573,3 +647,46 @@ def test_an_amount_that_cannot_be_worked_out_says_why(
     typo = client.post(TO_GRAMS, headers=auth, json={"text": "flour"})
     assert typo.status_code == 422 and typo.json()["code"] == "bad_amount"
     assert client.post(TO_GRAMS, headers=auth, json={"text": ""}).status_code == 422
+
+
+# --- the "how much?" wheel ---
+
+PORTIONS = "/api/v1/foods/portions"
+YOGURT = {
+    "food_name": "Yogurt, Greek, plain",
+    "servings": [
+        {"label": "1 container (170 g)", "grams": 170},
+        {"label": "1 cup (245 g)", "grams": 245},
+    ],
+}
+
+
+def test_portions_need_a_token(client: TestClient) -> None:
+    assert client.post(PORTIONS, json=YOGURT).status_code == 401
+
+
+def test_portions_list_own_rough_and_exact_choices(
+    client: TestClient, auth: dict[str, str]
+) -> None:
+    reply = client.post(PORTIONS, headers=auth, json=YOGURT)
+    assert reply.status_code == 200
+    options = {p["label"]: p for p in reply.json()["portions"]}
+    assert options["container"]["kind"] == "own" and options["container"]["grams"] == 170
+    assert options["small bowl"]["kind"] == "rough"
+    assert options["small bowl"]["note"].startswith("about 4.3 oz")
+    assert options["g"]["kind"] == "exact" and options["g"]["grams"] == 1
+    assert 0.5 in options["container"]["quantities"]
+
+
+def test_portions_for_a_food_with_nothing_known_are_just_grams_and_ounces(
+    client: TestClient, auth: dict[str, str]
+) -> None:
+    reply = client.post(PORTIONS, headers=auth, json={"food_name": "Mystery"})
+    assert [p["label"] for p in reply.json()["portions"]] == ["g", "oz"]
+
+
+def test_a_typed_rough_amount_becomes_grams(client: TestClient, auth: dict[str, str]) -> None:
+    reply = client.post(TO_GRAMS, headers=auth, json={"text": "1/4 of a container", **YOGURT})
+    assert reply.status_code == 200 and reply.json()["grams"] == 42.5
+    bowl = client.post(TO_GRAMS, headers=auth, json={"text": "2 small bowls", **YOGURT})
+    assert bowl.json()["grams"] == 245.0

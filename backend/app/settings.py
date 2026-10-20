@@ -45,6 +45,8 @@ class Search(_Section):
     min_query_length: int = Field(ge=1, le=10)
     max_query_length: int = Field(ge=20, le=500)
     timeout_seconds: float = Field(gt=0, le=60)
+    deadline_seconds: float = Field(gt=0, le=60)
+    cache_seconds: float = Field(ge=0, le=86400)
     usda_generic_limit: int = Field(ge=1, le=200)
     usda_loose_below: int = Field(ge=1, le=200)
     usda_retry_waits: tuple[float, ...] = Field(max_length=5)
@@ -65,6 +67,25 @@ class FoodLimits(_Section):
     max_servings: int = Field(ge=1, le=100)
     max_serving_grams: float = Field(gt=0, le=100000)
     max_serving_label_length: int = Field(ge=10, le=500)
+
+
+class Portions(_Section):
+    small_bowl_cups: float = Field(gt=0, le=10)
+    medium_bowl_cups: float = Field(gt=0, le=10)
+    large_bowl_cups: float = Field(gt=0, le=10)
+    small_plate_cups: float = Field(gt=0, le=20)
+    medium_plate_cups: float = Field(gt=0, le=20)
+    large_plate_cups: float = Field(gt=0, le=20)
+    small_portion_factor: float = Field(gt=0, lt=1)
+    large_portion_factor: float = Field(gt=1, le=5)
+
+    @model_validator(mode="after")
+    def _sizes_are_in_order(self) -> "Portions":
+        if not self.small_bowl_cups < self.medium_bowl_cups < self.large_bowl_cups:
+            raise ValueError("bowl sizes must go small < medium < large")
+        if not self.small_plate_cups < self.medium_plate_cups < self.large_plate_cups:
+            raise ValueError("plate sizes must go small < medium < large")
+        return self
 
 
 class Activity(_Section):
@@ -139,6 +160,7 @@ class Settings(BaseSettings):
     ranking: Ranking
     search: Search
     food: FoodLimits
+    portions: Portions
     goals: Goals
     profile: Profile
 

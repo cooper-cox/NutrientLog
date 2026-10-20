@@ -8,7 +8,7 @@ everything else is under /api/v1.
 import uuid
 from datetime import UTC, date, datetime
 from functools import lru_cache
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import text
@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app import auth, foods, log, profiles
 from app.auth import CurrentUser
-from app.calc.measures import measures_from_servings, parse_amount, to_grams
+from app.calc.portions import grams_for_text, portion_options
 from app.calc.profile_check import limits
 from app.db import get_session
 from app.schemas import (
@@ -33,12 +33,18 @@ from app.schemas import (
     LimitsOut,
     LogEntryIn,
     LogEntryOut,
+    LogEntryPatch,
     MeasuresOut,
+    MonthOut,
+    PortionOut,
+    PortionsIn,
+    PortionsOut,
     ProfileIn,
     ProfileOut,
     ProfileSaved,
     ServingIn,
     UserCreated,
+    WeekOut,
 )
 from app.settings import settings
 from app.sources import FoodSource, FoodSourceError
@@ -175,13 +181,19 @@ def search_foods(
     page: Annotated[
         int, Query(ge=1, le=100, description="1 for the first results; 2, 3... for 'show more'")
     ] = 1,
+    scope: Annotated[
+        Literal["full", "fast"],
+        Query(description="'fast' answers from the main database only (see `more_coming`)"),
+    ] = "full",
 ) -> FoodSearchOut:
     """Your saved foods, then the best matches from the food databases, in one ranked list.
 
     A database being down never hides the other results. If `has_more` is true, ask again with
-    the next `page` for more.
+    the next `page` for more. The app asks with `scope=fast` first so results show quickly, and,
+    when `more_coming` is true, asks again with the default scope to add the slower database
+    (the main database's answer is remembered, so that second ask is cheap).
     """
-    return foods.search_foods(session, user, q, sources, page)
+    return foods.search_foods(session, user, q, sources, page, fast=scope == "fast")
 
 
 @v1.get("/foods/measures", response_model=MeasuresOut, tags=["foods"])
@@ -205,6 +217,25 @@ def food_measures(
     return MeasuresOut(servings=[ServingIn(label=m.label, grams=m.grams) for m in found])
 
 
+@v1.post("/foods/portions", response_model=PortionsOut, tags=["foods"])
+def food_portions(data: PortionsIn, user: CurrentUser) -> PortionsOut:
+    """The choices for "how much?" for one food: its own servings, rough sizes such as "small
+    bowl" (with an estimated weight), and exact units. The phone shows them as a wheel."""
+    options = portion_options(data.food_name, [(s.label, s.grams) for s in data.servings])
+    return PortionsOut(
+        portions=[
+            PortionOut(
+                label=o.label,
+                grams=o.grams,
+                kind=o.kind,
+                note=o.note,
+                quantities=[round(q, 4) for q in o.quantities],
+            )
+            for o in options
+        ]
+    )
+
+
 @v1.post("/amounts/to-grams", response_model=AmountOut, tags=["foods"])
 def amount_to_grams(data: AmountIn, user: CurrentUser) -> AmountOut:
     """Turn a typed amount ("1/2 cup flour", "8 oz", "2 bars") into grams.
@@ -213,9 +244,9 @@ def amount_to_grams(data: AmountIn, user: CurrentUser) -> AmountOut:
     out. If that is not enough, the answer is a 422 with a `code` ("unknown_density" or
     "unknown_serving") rather than a guess.
     """
-    amount = parse_amount(data.text)
-    measures = measures_from_servings([(item.label, item.grams) for item in data.servings])
-    grams = to_grams(amount, measures, food_name=data.food_name)
+    grams, amount = grams_for_text(
+        data.text, data.food_name, [(item.label, item.grams) for item in data.servings]
+    )
     return AmountOut(grams=round(grams, 2), quantity=amount.quantity, unit=amount.unit)
 
 
@@ -249,7 +280,46 @@ def get_log_day(
     on: Annotated[date | None, Query(alias="date", description="YYYY-MM-DD; default today")] = None,
 ) -> DayOut:
     """What was eaten on a day, the totals, and the calories left against today's target."""
-    return log.day(session, user, on or log.today_for(user, now))
+    today = log.today_for(user, now)
+    return log.day(session, user, on or today, today)
+
+
+@v1.get("/log/week", response_model=WeekOut, tags=["log"])
+def get_log_week(
+    user: CurrentUser,
+    session: SessionDep,
+    now: Annotated[datetime, Depends(utc_now)],
+    end: Annotated[date | None, Query(description="Last day, YYYY-MM-DD; default today")] = None,
+) -> WeekOut:
+    """Calories and protein for each of the seven days ending on `end`."""
+    return log.week(session, user, end or log.today_for(user, now))
+
+
+@v1.get("/log/month", response_model=MonthOut, tags=["log"])
+def get_log_month(
+    user: CurrentUser,
+    session: SessionDep,
+    now: Annotated[datetime, Depends(utc_now)],
+    month: Annotated[
+        str | None,
+        Query(pattern=r"^\d{4}-(0[1-9]|1[0-2])$", description="YYYY-MM; default this month"),
+    ] = None,
+) -> MonthOut:
+    """Calories and protein for each day of a month, for the calendar."""
+    today = log.today_for(user, now)
+    year, number = (int(part) for part in month.split("-")) if month else (today.year, today.month)
+    return log.month(session, user, year, number, today)
+
+
+@v1.patch("/log/{entry_id}", response_model=LogEntryOut, tags=["log"])
+def change_log_entry(
+    entry_id: uuid.UUID, data: LogEntryPatch, user: CurrentUser, session: SessionDep
+) -> LogEntryOut:
+    """Change how much of a food an entry holds. Only your own entries (anything else is a 404)."""
+    entry = log.change_entry(session, user, entry_id, data)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="That entry was not found.")
+    return log.entry_out(entry)
 
 
 @v1.delete("/log/{entry_id}", status_code=204, tags=["log"])

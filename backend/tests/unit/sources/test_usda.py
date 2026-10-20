@@ -286,19 +286,42 @@ def test_a_thin_strict_search_is_topped_up_with_partial_matches() -> None:
     assert page.has_more is False
 
 
-def test_a_full_strict_search_does_not_need_the_looser_one() -> None:
-    modes: list[tuple[str, bool]] = []
-    foods = [{**BRANDED, "fdcId": number} for number in range(12)]
+def test_a_full_strict_search_ignores_the_looser_ones_answer() -> None:
+    """The partial-match search is sent at the same time (to save a round trip), but when the
+    strict one found plenty, only the strict answer is used."""
+    strict = [{**BRANDED, "fdcId": number} for number in range(12)]
+    extra = [{**BRANDED, "fdcId": 900 + number} for number in range(5)]
 
     def handler(request: httpx.Request) -> httpx.Response:
-        modes.append((types_of(request), sent(request)["requireAllWords"]))
+        foods = strict if sent(request)["requireAllWords"] else extra
         return httpx.Response(200, json={"foods": foods, "totalPages": 4})
 
     page = client_replying(handler).search("bar", 50)
-    assert ("branded", False) not in modes and page.has_more is True
-    modes.clear()
+    assert all(int(food.source_id) < 900 for food in page.foods) and page.has_more is True
+
+
+def test_a_looser_search_is_not_sent_for_later_pages() -> None:
+    modes: list[bool] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        modes.append(sent(request)["requireAllWords"])
+        return httpx.Response(200, json={"foods": [BRANDED], "totalPages": 4})
+
     client_replying(handler).search("bar", 50, page=2)
-    assert all(mode is True for _, mode in modes)
+    assert modes and all(mode is True for mode in modes)
+
+
+def test_the_strict_and_looser_searches_are_sent_at_the_same_time() -> None:
+    import threading
+
+    both_sent = threading.Barrier(2, timeout=3)  # each waits for the other: only works together
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if types_of(request) == "branded" and sent(request)["requireAllWords"] is not None:
+            both_sent.wait()
+        return httpx.Response(200, json={"foods": [], "totalPages": 1})
+
+    client_replying(handler).search("x", 5)  # would raise BrokenBarrierError if one waited
 
 
 def test_one_group_failing_does_not_hide_what_the_other_found() -> None:
@@ -348,7 +371,7 @@ def test_a_passing_error_is_asked_again_with_the_same_data_types() -> None:
     codes = iter([503, 200])
 
     def handler(request: httpx.Request) -> httpx.Response:
-        if types_of(request) == "branded":
+        if types_of(request) == "branded" or not sent(request)["requireAllWords"]:
             return httpx.Response(200, json={"foods": []})
         seen.append(sent(request)["dataType"])
         code = next(codes)
@@ -368,7 +391,7 @@ def test_it_gives_up_after_the_last_retry() -> None:
 
     with pytest.raises(FoodSourceError):
         client_replying(handler, retry_waits=(0.0, 0.0)).search("x", 5)
-    assert len(calls) == 6  # two groups, each asked three times
+    assert len(calls) == 12  # two groups, strict and looser, each asked three times
 
 
 def test_a_refused_key_is_not_retried() -> None:
@@ -380,7 +403,7 @@ def test_a_refused_key_is_not_retried() -> None:
 
     with pytest.raises(FoodSourceError, match="refused"):
         client_replying(handler, retry_waits=(0.0, 0.0)).search("x", 5)
-    assert len(calls) == 2
+    assert len(calls) == 4  # two groups, strict and looser, each asked once
 
 
 ONCE = "CLIF BAR, CLIF KIT'S ORGANIC, FRUIT + NUT BAR, PEANUT BUTTER"

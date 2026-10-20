@@ -8,7 +8,7 @@ their group.
 could ride along with another milestone. *Before others* means it must be fixed before anyone but
 the author uses the app.
 
-Last reviewed after: M6.R (cleanup).
+Last reviewed after: the amount wheel.
 
 ---
 
@@ -360,3 +360,15 @@ their job. Today's survey is a deliberately simple first version. These items, t
   - Fix: your own recents and favourites first (planned), then Open Food Facts' scan counts.
   - Revisit: M7 (recents).
 
+## F. Added with the amount wheel
+
+- [ ] **L48. Rough sizes are estimates built from one set of cup sizes.** A "small bowl" is half a
+  cup of the food and a "large plate" 3.5 cups, whatever the food is. A bowl of cereal, soup and
+  yogurt really differ, and people's bowls differ. Bowls and plates only appear when the food's
+  weight per cup is known (from USDA's own measures or a short list of plain foods); other foods
+  get "small portion" and "large portion" (half and one and a half times their serving).
+  - Why: one honest, adjustable rule beats invented per-food numbers.
+  - Fix: sizes per food group (cereal, soup, pasta, yogurt); "my bowl" calibration (weigh your
+    bowl once, and "small bowl" means yours); show the estimate in the log so it is clear which
+    entries were guesses.
+  - Revisit: after the prototype, with the personalization work.

@@ -18,6 +18,7 @@ from app.sources import (
     FoodCandidate,
     FoodPage,
     FoodSourceError,
+    SearchCache,
     ServingCandidate,
     reply_snippet,
 )
@@ -151,7 +152,9 @@ class OpenFoodFactsClient:
         country: str = "",
         retry_waits: tuple[float, ...] = RETRY_WAITS,
         cooldown_seconds: float = COOLDOWN_SECONDS,
+        cache_seconds: float = settings.search.cache_seconds,
     ) -> None:
+        self._cache = SearchCache(cache_seconds)
         self._cooldown = cooldown_seconds
         self._down_until = 0.0
         # A country such as "united-states" keeps out foreign-language products.
@@ -165,6 +168,15 @@ class OpenFoodFactsClient:
         return []
 
     def search(self, query: str, limit: int, page: int = 1) -> FoodPage:
+        cache_key = (query.lower(), limit, page)
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            return cached
+        found = self._search_uncached(query, limit, page)
+        self._cache.put(cache_key, found)
+        return found
+
+    def _search_uncached(self, query: str, limit: int, page: int) -> FoodPage:
         if time.monotonic() < self._down_until:
             raise FoodSourceError(
                 "Open Food Facts had a problem. Try again later.", "skipped: failed a moment ago"

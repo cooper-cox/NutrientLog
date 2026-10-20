@@ -193,22 +193,29 @@ describe("apiGet", () => {
   });
 });
 
-describe('deleting and reasons', () => {
-  it('sends DELETE and accepts an empty reply', async () => {
-    const fetchMock = mockFetch(async () => ({ ok: true, status: 204 }) as Response);
+describe("deleting and reasons", () => {
+  it("sends DELETE and accepts an empty reply", async () => {
+    const fetchMock = mockFetch(
+      async () => ({ ok: true, status: 204 }) as Response,
+    );
     await expect(
-      apiRequest('DELETE', '/api/v1/log/abc', { baseUrl: BASE, token: 't' }),
+      apiRequest("DELETE", "/api/v1/log/abc", { baseUrl: BASE, token: "t" }),
     ).resolves.toBeUndefined();
-    expect(fetchMock.mock.calls[0][1]?.method).toBe('DELETE');
+    expect(fetchMock.mock.calls[0][1]?.method).toBe("DELETE");
   });
 
-  it('passes on the reason code of a rejection', async () => {
+  it("passes on the reason code of a rejection", async () => {
     mockFetch(async () =>
-      reply({ detail: 'Not heavy enough.', code: 'unknown_density', errors: [] }, 422),
+      reply(
+        { detail: "Not heavy enough.", code: "unknown_density", errors: [] },
+        422,
+      ),
     );
-    const error = await apiGet('/x', { baseUrl: BASE }).catch((caught: unknown) => caught);
+    const error = await apiGet("/x", { baseUrl: BASE }).catch(
+      (caught: unknown) => caught,
+    );
     expect(error).toBeInstanceOf(ApiError);
-    expect((error as ApiError).code).toBe('unknown_density');
-    expect((error as ApiError).message).toBe('Not heavy enough.');
+    expect((error as ApiError).code).toBe("unknown_density");
+    expect((error as ApiError).message).toBe("Not heavy enough.");
   });
 });

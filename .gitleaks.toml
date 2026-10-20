@@ -4,6 +4,9 @@
 useDefault = true
 
 [allowlist]
-description = "'nutrient_key' is the name of a nutrient (like 'calories'), not a secret key"
+description = "'nutrient_key' and the nutrient list on the phone ('key: \"vitamin_c_mg\", label: ...') name nutrients, not secret keys"
 regexTarget = "line"
-regexes = ['''nutrient_key''']
+regexes = [
+  '''nutrient_key''',
+  '''key:\s*"[a-z0-9_]+",\s*label:''',
+]

@@ -21,7 +21,8 @@ def test_the_values_are_the_ones_the_app_always_used() -> None:
     assert config.ranking.exact_name == 20.0
     assert config.search.usda_generic_limit == 60
     assert config.search.usda_retry_waits == (1.0, 3.0)
-    assert config.search.off_retry_waits == (2.0, 5.0)
+    assert config.search.off_retry_waits == (1.0, 2.0)
+    assert config.search.deadline_seconds == 4.0
     assert config.goals.activity.light == 1.375
     assert config.goals.calorie_floor.no_answer == 1350
     assert config.profile.max_goal_bmi == 45.0

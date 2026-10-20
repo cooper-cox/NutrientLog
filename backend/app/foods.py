@@ -1,6 +1,9 @@
 """Foods: saving one, looking one up, and searching saved foods plus the outside databases."""
 
+import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeout
 
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
@@ -258,21 +261,63 @@ def collapse_lookalikes(candidates: list[FoodCandidate]) -> list[FoodCandidate]:
     return kept
 
 
+def _ask_one(source: FoodSource, text: str, page: int) -> tuple[FoodPage | FoodSourceError, int]:
+    started = time.monotonic()
+    try:
+        result: FoodPage | FoodSourceError = source.search(text, SOURCE_LIMIT, page)
+    except FoodSourceError as error:
+        result = error
+    return result, round((time.monotonic() - started) * 1000)
+
+
 def _ask_all(
-    sources: list[FoodSource], text: str, page: int, statuses: list[SourceStatus]
+    sources: list[FoodSource],
+    text: str,
+    page: int,
+    statuses: list[SourceStatus],
+    wait_seconds: float,
 ) -> tuple[list[tuple[FoodCandidate, int]], bool]:
-    """Ask each source in turn; one that fails is reported and the others carry on."""
+    """Ask every source at the same time and wait at most `wait_seconds` for all of them.
+
+    A source that fails, or has not answered in time, is reported and skipped; the others carry
+    on. (A slow answer is left to finish in the background, and is remembered for next time.)
+    """
     pairs: list[tuple[FoodCandidate, int]] = []
     has_more = False
-    for source in sources:
-        try:
-            result: FoodPage = source.search(text, SOURCE_LIMIT, page)
-        except FoodSourceError as error:
-            statuses.append(SourceStatus(name=source.name, available=False, message=str(error)))
-            continue
-        statuses.append(SourceStatus(name=source.name, available=True))
-        pairs.extend((food, position) for position, food in enumerate(result.foods))
-        has_more = has_more or result.has_more
+    if not sources:
+        return pairs, has_more
+    pool = ThreadPoolExecutor(max_workers=len(sources))
+    try:
+        futures = [(source, pool.submit(_ask_one, source, text, page)) for source in sources]
+        give_up_at = time.monotonic() + wait_seconds
+        for source, future in futures:
+            try:
+                outcome, took_ms = future.result(timeout=max(give_up_at - time.monotonic(), 0.0))
+            except FutureTimeout:
+                statuses.append(
+                    SourceStatus(
+                        name=source.name,
+                        available=False,
+                        message="It was too slow, so its results were left out this time.",
+                        took_ms=round(wait_seconds * 1000),
+                    )
+                )
+                continue
+            if isinstance(outcome, FoodSourceError):
+                statuses.append(
+                    SourceStatus(
+                        name=source.name,
+                        available=False,
+                        message=str(outcome),
+                        took_ms=took_ms,
+                    )
+                )
+                continue
+            statuses.append(SourceStatus(name=source.name, available=True, took_ms=took_ms))
+            pairs.extend((food, position) for position, food in enumerate(outcome.foods))
+            has_more = has_more or outcome.has_more
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
     return pairs, has_more
 
 
@@ -294,26 +339,51 @@ def _order(text: str, pairs: list[tuple[FoodCandidate, int]]) -> list[FoodCandid
     return [unique[index] for index in rank(text, items)]
 
 
+def wants_fallback(
+    text: str, ranked: list[FoodCandidate], sources: list[FoodSource], page: int
+) -> bool:
+    """Would the fallback database be asked? Only on page 1, only if there is one, and only for
+    a long query (a specific product) or when the main databases found few close matches."""
+    if page != 1 or not any(source.fallback for source in sources):
+        return False
+    return (
+        len(words(text)) >= LONG_QUERY_WORDS or full_matches_in(text, ranked) < ENOUGH_FULL_MATCHES
+    )
+
+
 def gather_and_rank(
-    text: str, sources: list[FoodSource], page: int = 1
+    text: str,
+    sources: list[FoodSource],
+    page: int = 1,
+    deadline_seconds: float | None = None,
+    fast: bool = False,
 ) -> tuple[list[FoodCandidate], list[SourceStatus], bool]:
     """Ask the databases, merge duplicates, and order everything as one list (best first).
 
-    The main databases are asked first. A fallback database (slower, limits how often it can be
-    asked) is only added on the first page, and only when fewer than ENOUGH_FULL_MATCHES results
-    contain every typed word, or the query is long enough to name one specific product.
+    All databases that are certain to be needed are asked at once. A fallback database (slower,
+    limits how often it can be asked) is only used on the first page: at once for a long query
+    (it names one specific product), otherwise only after the main databases found fewer than
+    ENOUGH_FULL_MATCHES results containing every typed word (see `wants_fallback`). The whole
+    search gives up waiting after `deadline_seconds` (default from config.toml) and returns what
+    it has. With `fast`, the fallback is never asked, so the answer takes only as long as the
+    main databases.
     Needs no database of our own, so the real-data check script can use it too.
     """
+    started = time.monotonic()
+    budget = settings.search.deadline_seconds if deadline_seconds is None else deadline_seconds
     statuses: list[SourceStatus] = []
-    pairs, has_more = _ask_all([s for s in sources if not s.fallback], text, page, statuses)
+    main = [s for s in sources if not s.fallback]
+    fallbacks = [s for s in sources if s.fallback] if page == 1 and not fast else []
+    long_query = len(words(text)) >= LONG_QUERY_WORDS
+    together = fallbacks if long_query else []
+
+    pairs, has_more = _ask_all(main + together, text, page, statuses, budget)
     ranked = _order(text, pairs)
 
-    fallbacks = [source for source in sources if source.fallback]
-    thin = (
-        full_matches_in(text, ranked) < ENOUGH_FULL_MATCHES or len(words(text)) >= LONG_QUERY_WORDS
-    )
-    if page == 1 and fallbacks and thin:
-        more, more_has = _ask_all(fallbacks, text, page, statuses)
+    later = [] if long_query else fallbacks
+    if later and wants_fallback(text, ranked, later, page):
+        left = max(budget - (time.monotonic() - started), 1.0)
+        more, more_has = _ask_all(later, text, page, statuses, left)
         pairs = pairs + more
         ranked = _order(text, pairs)
         has_more = has_more or more_has
@@ -325,7 +395,12 @@ def full_matches_in(text: str, ranked: list[FoodCandidate]) -> int:
 
 
 def search_foods(
-    session: Session, user: User, query: str, sources: list[FoodSource], page: int = 1
+    session: Session,
+    user: User,
+    query: str,
+    sources: list[FoodSource],
+    page: int = 1,
+    fast: bool = False,
 ) -> FoodSearchOut:
     """The user's saved foods, then the best matches from every outside database, ranked as one.
 
@@ -343,11 +418,17 @@ def search_foods(
         if page == 1
         else []
     )
-    ranked, statuses, has_more = gather_and_rank(text, sources, page)
+    ranked, statuses, has_more = gather_and_rank(text, sources, page, fast=fast)
     already = {source.name: _saved_source_ids(session, user.id, source.name) for source in sources}
     results = [
         candidate_out(candidate)
         for candidate in ranked
         if candidate.source_id not in already.get(candidate.source, set())
     ]
-    return FoodSearchOut(saved=saved, results=results, sources=statuses, has_more=has_more)
+    return FoodSearchOut(
+        saved=saved,
+        results=results,
+        sources=statuses,
+        has_more=has_more,
+        more_coming=fast and wants_fallback(text, ranked, sources, page),
+    )

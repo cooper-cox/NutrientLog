@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import date, datetime
+from datetime import date as datetime_date
 from enum import StrEnum
 from typing import Literal
 
@@ -153,6 +154,8 @@ class SourceStatus(BaseModel):
     available: bool
     # A plain sentence if it failed (the other results are still good).
     message: str | None = None
+    # How long it took to answer, in milliseconds (for finding out what makes a search slow).
+    took_ms: int | None = None
 
 
 class FoodSearchOut(BaseModel):
@@ -164,6 +167,9 @@ class FoodSearchOut(BaseModel):
     sources: list[SourceStatus]
     # True if asking for the next `page` may find more results.
     has_more: bool = False
+    # True when a "fast" search left out the slower fallback database that a full search would
+    # add: ask again without `scope=fast` to get those results too.
+    more_coming: bool = False
 
 
 class LimitsOut(BaseModel):
@@ -206,6 +212,25 @@ class AmountIn(BaseModel):
     servings: list[ServingIn] = Field(default_factory=list, max_length=50)
 
 
+class PortionsIn(BaseModel):
+    food_name: str = Field(default="", max_length=200)
+    servings: list[ServingIn] = Field(default_factory=list, max_length=50)
+
+
+class PortionOut(BaseModel):
+    """One choice on the amount wheel: `grams` is the weight of ONE of it."""
+
+    label: str
+    grams: float
+    kind: Literal["own", "rough", "exact"]
+    note: str  # for rough sizes: "about 6 oz (170 g)"
+    quantities: list[float]
+
+
+class PortionsOut(BaseModel):
+    portions: list[PortionOut]
+
+
 class AmountOut(BaseModel):
     grams: float
     quantity: float
@@ -235,10 +260,46 @@ class LogEntryOut(BaseModel):
     created_at: datetime
 
 
+class LogEntryPatch(BaseModel):
+    """Change an entry's amount: type a new amount ("2 slices"), or send grams directly."""
+
+    amount_text: str | None = Field(default=None, min_length=1, max_length=100)
+    grams: float | None = Field(default=None, gt=0)
+
+
+class WeekDayOut(BaseModel):
+    date: date
+    calories: float
+    protein_g: float
+    entries: int
+
+
+class WeekOut(BaseModel):
+    """Seven days ending on `end`, oldest first, for the weekly view."""
+
+    end: date
+    days: list[WeekDayOut]
+    goal_calories: int | None
+    # Average calories over the days that have anything logged; null if none do.
+    average_calories: float | None
+
+
+class MonthOut(BaseModel):
+    """Every day of one calendar month, for the calendar view."""
+
+    month: str  # "2026-10"
+    today: datetime_date
+    days: list[WeekDayOut]
+    goal_calories: int | None
+    average_calories: float | None
+
+
 class DayOut(BaseModel):
     """Everything eaten on one day, the totals, and how that compares with the calorie target."""
 
     date: date
+    # The person's own "today", so the phone knows whether this is today without guessing.
+    today: datetime_date
     entries: list[LogEntryOut]
     totals: dict[str, float | None]
     goal_calories: int | None
