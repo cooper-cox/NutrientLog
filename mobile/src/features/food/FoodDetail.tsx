@@ -15,18 +15,24 @@ import {
   addLogEntry,
   amountToGrams,
   getMeasures,
+  getPortions,
   saveFood,
+  type Portion,
   type Serving,
 } from "../../api/food";
 import { Button, FormGroup, Input } from "../../ui/components";
+import { AmountWheel } from "./AmountWheel";
 import {
   defaultAmountText,
+  defaultChoice,
   displayName,
   kcalText,
   manualFormFrom,
   type ManualForm,
   mergeServings,
   nutrientIn,
+  portionGrams,
+  portionText,
   servingAmountText,
   type PickedFood,
 } from "./amounts";
@@ -64,9 +70,29 @@ export function FoodDetail({
   const [text, setText] = useState(() => defaultAmountText(food.servings));
   const [gramsFor, setGramsFor] = useState<number | null>(null);
   const [problemFor, setProblemFor] = useState<string | null>(null);
+  // The wheel is how most people give an amount; typing is for anything it does not offer.
+  const [typing, setTyping] = useState(false);
+  const [portions, setPortions] = useState<Portion[]>([]);
+  const [wheel, setWheel] = useState<{
+    unit: string;
+    quantity: number;
+    picked: boolean;
+  } | null>(null);
   const blank = text.trim() === "";
-  const grams = blank ? null : gramsFor;
-  const problem = blank ? null : problemFor;
+  const chosenPortion = portions.find((p) => p.label === wheel?.unit);
+  const wheelReady = chosenPortion !== undefined && wheel !== null;
+  const typedGrams = blank ? null : gramsFor;
+  const grams = typing
+    ? typedGrams
+    : wheelReady
+      ? portionGrams(chosenPortion, wheel.quantity)
+      : null;
+  const amountText = typing
+    ? text.trim()
+    : wheelReady
+      ? portionText(chosenPortion, wheel.quantity)
+      : "";
+  const problem = typing && !blank ? problemFor : null;
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
@@ -89,9 +115,40 @@ export function FoodDetail({
     };
   }, [picked]);
 
+  // The wheel's choices for this food (its own servings, rough sizes, exact units).
+  useEffect(() => {
+    let live = true;
+    getPortions(
+      food.name,
+      servings.map(({ label, grams: g }) => ({ label, grams: g })),
+    )
+      .then((found) => {
+        if (!live) return;
+        setPortions(found);
+        setWheel((now) => {
+          // Better choices can arrive after the first ones (USDA's own measures); keep what
+          // the person picked, but move an untouched wheel to the best starting point.
+          const kept = found.find((p) => p.label === now?.unit);
+          if (now?.picked && kept && kept.quantities.includes(now.quantity))
+            return now;
+          const start = defaultChoice(found);
+          return start
+            ? { unit: start.label, quantity: start.quantity, picked: false }
+            : null;
+        });
+      })
+      .catch(() => {
+        // Not fatal: typing an amount still works.
+        if (live) setTyping(true);
+      });
+    return () => {
+      live = false;
+    };
+  }, [food.name, servings]);
+
   // Work out the grams from what was typed, a moment after typing stops.
   useEffect(() => {
-    if (text.trim() === "") return;
+    if (!typing || text.trim() === "") return;
     let live = true;
     const timer = setTimeout(() => {
       amountToGrams(text, food.name, servings)
@@ -114,7 +171,7 @@ export function FoodDetail({
       live = false;
       clearTimeout(timer);
     };
-  }, [text, servings, food.name]);
+  }, [typing, text, servings, food.name]);
 
   async function add() {
     if (grams === null) return;
@@ -140,7 +197,7 @@ export function FoodDetail({
         });
         foodId = savedFood.id;
       }
-      await addLogEntry(foodId, grams, text.trim(), date ?? undefined);
+      await addLogEntry(foodId, grams, amountText, date ?? undefined);
       onAdded();
     } catch (error) {
       setAddError(
@@ -169,46 +226,75 @@ export function FoodDetail({
         {displayName(food)}
       </Text>
 
-      <FormGroup
-        label="How much?"
-        help='Any unit works: "1 medium", "1/2 cup", "8 oz", "100 g", "2 tbsp".'
-        error={problem ?? undefined}
-      >
-        <Input
-          value={text}
-          onChangeText={setText}
-          autoCapitalize="none"
-          autoCorrect={false}
-          accessibilityLabel="Amount"
-          hasError={problem !== null}
-        />
-      </FormGroup>
+      {typing ? (
+        <>
+          <FormGroup
+            label="How much?"
+            help='Any unit works: "1 medium", "1/2 cup", "8 oz", "100 g", "1/4 of a container".'
+            error={problem ?? undefined}
+          >
+            <Input
+              value={text}
+              onChangeText={setText}
+              autoCapitalize="none"
+              autoCorrect={false}
+              accessibilityLabel="Amount"
+              hasError={problem !== null}
+            />
+          </FormGroup>
 
-      {servings.length > 0 || loadingMeasures ? (
-        <View style={styles.chips} accessibilityLabel="Quick amounts">
-          {servings.slice(0, 10).map((serving) => (
-            <Pressable
-              key={serving.label}
-              accessibilityRole="button"
-              accessibilityLabel={`Use ${serving.label}`}
-              onPress={() => setText(servingAmountText(serving.label))}
-              style={styles.chip}
-            >
-              <Text style={styles.chipText}>{serving.label}</Text>
-            </Pressable>
-          ))}
-          {loadingMeasures ? (
-            <ActivityIndicator style={styles.spinner} />
+          {servings.length > 0 || loadingMeasures ? (
+            <View style={styles.chips} accessibilityLabel="Quick amounts">
+              {servings.slice(0, 10).map((serving) => (
+                <Pressable
+                  key={serving.label}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Use ${serving.label}`}
+                  onPress={() => setText(servingAmountText(serving.label))}
+                  style={styles.chip}
+                >
+                  <Text style={styles.chipText}>{serving.label}</Text>
+                </Pressable>
+              ))}
+              {loadingMeasures ? (
+                <ActivityIndicator style={styles.spinner} />
+              ) : null}
+            </View>
           ) : null}
-        </View>
-      ) : null}
+        </>
+      ) : (
+        <FormGroup
+          label="How much?"
+          help="Scroll to pick. Sizes marked ~ are estimates."
+        >
+          {wheel ? (
+            <AmountWheel
+              portions={portions}
+              unit={wheel.unit}
+              quantity={wheel.quantity}
+              onChange={(unit, quantity) =>
+                setWheel({ unit, quantity, picked: true })
+              }
+            />
+          ) : (
+            <ActivityIndicator style={styles.spinner} />
+          )}
+        </FormGroup>
+      )}
+      <Button
+        title={
+          typing ? "Use the wheel instead" : "Type an exact amount instead"
+        }
+        onPress={() => setTyping((now) => !now)}
+        secondary
+      />
 
       <View style={styles.summary} accessibilityLabel="What this contains">
         <Text style={styles.big}>
           {ready ? kcalText(nutrientIn(per100, "calories", shown)) : "— kcal"}
         </Text>
         <Text style={styles.small}>
-          {ready ? `${gramsText(grams)} of food` : "Enter an amount"}
+          {ready ? `${gramsText(grams)} of food` : "Choose an amount"}
         </Text>
         {ready ? (
           <View style={styles.macros}>

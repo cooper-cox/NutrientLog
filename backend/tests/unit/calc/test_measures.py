@@ -37,6 +37,8 @@ CUP_ML = 236.5882365
         ("1 bowl", 1, "bowl", ""),
         ("  .5 cup", 0.5, "cup", ""),
         ("2", 2, None, ""),
+        ("1/4 of a tub", 0.25, "tub", ""),
+        ("half of the package"[:0] + "1/2 of the package", 0.5, "package", ""),
     ],
 )
 def test_parse_amount(text: str, quantity: float, unit: str | None, food: str) -> None:

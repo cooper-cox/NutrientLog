@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app import auth, foods, log, profiles
 from app.auth import CurrentUser
-from app.calc.measures import measures_from_servings, parse_amount, to_grams
+from app.calc.portions import grams_for_text, portion_options
 from app.calc.profile_check import limits
 from app.db import get_session
 from app.schemas import (
@@ -36,6 +36,9 @@ from app.schemas import (
     LogEntryPatch,
     MeasuresOut,
     MonthOut,
+    PortionOut,
+    PortionsIn,
+    PortionsOut,
     ProfileIn,
     ProfileOut,
     ProfileSaved,
@@ -214,6 +217,25 @@ def food_measures(
     return MeasuresOut(servings=[ServingIn(label=m.label, grams=m.grams) for m in found])
 
 
+@v1.post("/foods/portions", response_model=PortionsOut, tags=["foods"])
+def food_portions(data: PortionsIn, user: CurrentUser) -> PortionsOut:
+    """The choices for "how much?" for one food: its own servings, rough sizes such as "small
+    bowl" (with an estimated weight), and exact units. The phone shows them as a wheel."""
+    options = portion_options(data.food_name, [(s.label, s.grams) for s in data.servings])
+    return PortionsOut(
+        portions=[
+            PortionOut(
+                label=o.label,
+                grams=o.grams,
+                kind=o.kind,
+                note=o.note,
+                quantities=[round(q, 4) for q in o.quantities],
+            )
+            for o in options
+        ]
+    )
+
+
 @v1.post("/amounts/to-grams", response_model=AmountOut, tags=["foods"])
 def amount_to_grams(data: AmountIn, user: CurrentUser) -> AmountOut:
     """Turn a typed amount ("1/2 cup flour", "8 oz", "2 bars") into grams.
@@ -222,9 +244,9 @@ def amount_to_grams(data: AmountIn, user: CurrentUser) -> AmountOut:
     out. If that is not enough, the answer is a 422 with a `code` ("unknown_density" or
     "unknown_serving") rather than a guess.
     """
-    amount = parse_amount(data.text)
-    measures = measures_from_servings([(item.label, item.grams) for item in data.servings])
-    grams = to_grams(amount, measures, food_name=data.food_name)
+    grams, amount = grams_for_text(
+        data.text, data.food_name, [(item.label, item.grams) for item in data.servings]
+    )
     return AmountOut(grams=round(grams, 2), quantity=amount.quantity, unit=amount.unit)
 
 

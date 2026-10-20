@@ -647,3 +647,46 @@ def test_an_amount_that_cannot_be_worked_out_says_why(
     typo = client.post(TO_GRAMS, headers=auth, json={"text": "flour"})
     assert typo.status_code == 422 and typo.json()["code"] == "bad_amount"
     assert client.post(TO_GRAMS, headers=auth, json={"text": ""}).status_code == 422
+
+
+# --- the "how much?" wheel ---
+
+PORTIONS = "/api/v1/foods/portions"
+YOGURT = {
+    "food_name": "Yogurt, Greek, plain",
+    "servings": [
+        {"label": "1 container (170 g)", "grams": 170},
+        {"label": "1 cup (245 g)", "grams": 245},
+    ],
+}
+
+
+def test_portions_need_a_token(client: TestClient) -> None:
+    assert client.post(PORTIONS, json=YOGURT).status_code == 401
+
+
+def test_portions_list_own_rough_and_exact_choices(
+    client: TestClient, auth: dict[str, str]
+) -> None:
+    reply = client.post(PORTIONS, headers=auth, json=YOGURT)
+    assert reply.status_code == 200
+    options = {p["label"]: p for p in reply.json()["portions"]}
+    assert options["container"]["kind"] == "own" and options["container"]["grams"] == 170
+    assert options["small bowl"]["kind"] == "rough"
+    assert options["small bowl"]["note"].startswith("about 4.3 oz")
+    assert options["g"]["kind"] == "exact" and options["g"]["grams"] == 1
+    assert 0.5 in options["container"]["quantities"]
+
+
+def test_portions_for_a_food_with_nothing_known_are_just_grams_and_ounces(
+    client: TestClient, auth: dict[str, str]
+) -> None:
+    reply = client.post(PORTIONS, headers=auth, json={"food_name": "Mystery"})
+    assert [p["label"] for p in reply.json()["portions"]] == ["g", "oz"]
+
+
+def test_a_typed_rough_amount_becomes_grams(client: TestClient, auth: dict[str, str]) -> None:
+    reply = client.post(TO_GRAMS, headers=auth, json={"text": "1/4 of a container", **YOGURT})
+    assert reply.status_code == 200 and reply.json()["grams"] == 42.5
+    bowl = client.post(TO_GRAMS, headers=auth, json={"text": "2 small bowls", **YOGURT})
+    assert bowl.json()["grams"] == 245.0

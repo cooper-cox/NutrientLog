@@ -2,6 +2,7 @@
 import type {
   FoodCandidate,
   Nutrients,
+  Portion,
   SavedFood,
   Serving,
 } from "../../api/food";
@@ -194,4 +195,84 @@ export function displayName(food: {
   return food.name.toLowerCase().startsWith(brand.toLowerCase())
     ? product
     : `${brand} · ${product}`;
+}
+
+// --- the amount wheel -------------------------------------------------------------------------
+
+const FRACTIONS: [number, string][] = [
+  [0.25, "1/4"],
+  [1 / 3, "1/3"],
+  [0.5, "1/2"],
+  [2 / 3, "2/3"],
+  [0.75, "3/4"],
+];
+
+/** 0.5 -> "1/2", 1.25 -> "1 1/4", 150 -> "150": how people say a quantity. */
+export function quantityLabel(quantity: number): string {
+  const whole = Math.floor(quantity + 1e-9);
+  const rest = quantity - whole;
+  if (rest < 1e-6) return String(whole);
+  const fraction = FRACTIONS.find(([value]) => Math.abs(value - rest) < 1e-3);
+  if (fraction) return whole === 0 ? fraction[1] : `${whole} ${fraction[1]}`;
+  return String(Math.round(quantity * 100) / 100);
+}
+
+/** What the wheel's unit says for this many ("2 small bowls"); exact units never change. */
+function unitWord(portion: Portion, quantity: number): string {
+  if (portion.kind !== "rough" || quantity <= 1) return portion.label;
+  return portion.label.endsWith("s") ? portion.label : `${portion.label}s`;
+}
+
+/** The amount as a person would write it: "1/2 small bowl", "2 plates", "150 g". */
+export function portionText(portion: Portion, quantity: number): string {
+  return `${quantityLabel(quantity)} ${unitWord(portion, quantity)}`;
+}
+
+/** The grams in `quantity` of a portion. */
+export function portionGrams(portion: Portion, quantity: number): number {
+  return Math.round(portion.grams * quantity * 100) / 100;
+}
+
+/** The wheel's line for a unit: own servings and rough sizes show their size. */
+export function portionItemLabel(portion: Portion): string {
+  if (portion.kind === "own") {
+    // Say how big the food's own serving is, so "container" is not a mystery.
+    return `${portion.label} (${Math.round(portion.grams)} g)`;
+  }
+  if (portion.kind !== "rough") return portion.label;
+  const match = /about ([\d.]+) oz/.exec(portion.note);
+  return match ? `${portion.label} ~${match[1]} oz` : portion.label;
+}
+
+/** "about 6 oz (170 g)" for a rough amount; "170 g" for the rest. */
+export function portionSummary(portion: Portion, quantity: number): string {
+  const grams = portionGrams(portion, quantity);
+  const ounces = grams / 28.3495;
+  const oz = ounces >= 10 ? String(Math.round(ounces)) : oneDecimal(ounces);
+  return portion.kind === "rough"
+    ? `about ${oz} oz (${Math.round(grams)} g)`
+    : `${oneDecimal(grams)} g`;
+}
+
+const START_QUANTITY: Record<string, number> = { g: 100, oz: 4, ml: 250 };
+
+/** The quantity to show when a unit is chosen: keep the old one if offered, else a sensible one. */
+export function startQuantity(portion: Portion, wanted?: number): number {
+  if (wanted !== undefined && portion.quantities.includes(wanted))
+    return wanted;
+  const fixed = START_QUANTITY[portion.label];
+  if (fixed !== undefined && portion.quantities.includes(fixed)) return fixed;
+  return portion.quantities.includes(1) ? 1 : portion.quantities[0];
+}
+
+/** What the wheel starts on: one of the food's own servings, else 100 g. */
+export function defaultChoice(portions: Portion[]): {
+  label: string;
+  quantity: number;
+} | null {
+  const first =
+    portions.find((portion) => portion.kind === "own") ??
+    portions.find((portion) => portion.label === "g") ??
+    portions[0];
+  return first ? { label: first.label, quantity: startQuantity(first) } : null;
 }

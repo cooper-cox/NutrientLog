@@ -13,8 +13,8 @@ from sqlalchemy.orm import Session
 from app import profiles
 from app.calc import dates
 from app.calc.goals import InvalidInputError, Problem
-from app.calc.measures import measures_from_servings, parse_amount, to_grams
 from app.calc.nutrients import KEYS, scale_nutrients, sum_nutrients
+from app.calc.portions import grams_for_text
 from app.foods import find_visible
 from app.models import Food, LogEntry, User
 from app.schemas import (
@@ -133,8 +133,9 @@ def change_entry(
                 [Problem("amount_text", "Type an amount, like 2 bars or 150 g.")]
             )
         food = entry.food
-        measures = measures_from_servings([(s.label, s.grams) for s in food.servings])
-        grams = round(to_grams(parse_amount(text), measures, food_name=food.name), 2)
+        grams = round(
+            grams_for_text(text, food.name, [(s.label, s.grams) for s in food.servings])[0], 2
+        )
     if grams > settings.food.max_serving_grams:
         raise InvalidInputError([Problem("grams", "That is more food than one entry can hold.")])
     entry.grams = grams

@@ -1,5 +1,7 @@
+import type { Portion } from "../../api/food";
 import {
   defaultAmountText,
+  defaultChoice,
   displayName,
   EMPTY_MANUAL,
   kcalText,
@@ -8,8 +10,14 @@ import {
   mergeServings,
   nutrientIn,
   parseNumber,
+  portionGrams,
+  portionItemLabel,
+  portionSummary,
+  portionText,
+  quantityLabel,
   resultLine,
   servingAmountText,
+  startQuantity,
 } from "./amounts";
 
 describe("servings as typed amounts", () => {
@@ -169,5 +177,78 @@ describe("names in lists", () => {
     expect(displayName({ name: "Milk, whole", brand: null })).toBe(
       "Milk, whole",
     );
+  });
+});
+
+describe("the amount wheel helpers", () => {
+  const bowl: Portion = {
+    label: "small bowl",
+    grams: 123,
+    kind: "rough",
+    note: "about 4.3 oz (123 g)",
+    quantities: [0.5, 1, 2],
+  };
+  const grams: Portion = {
+    label: "g",
+    grams: 1,
+    kind: "exact",
+    note: "",
+    quantities: [50, 100, 150],
+  };
+  const container: Portion = {
+    label: "container",
+    grams: 170,
+    kind: "own",
+    note: "",
+    quantities: [0.25, 1],
+  };
+
+  it("writes quantities the way people say them", () => {
+    expect(quantityLabel(0.25)).toBe("1/4");
+    expect(quantityLabel(1 / 3)).toBe("1/3");
+    expect(quantityLabel(2 / 3)).toBe("2/3");
+    expect(quantityLabel(1)).toBe("1");
+    expect(quantityLabel(1.5)).toBe("1 1/2");
+    expect(quantityLabel(1.75)).toBe("1 3/4");
+    expect(quantityLabel(150)).toBe("150");
+    expect(quantityLabel(0.4)).toBe("0.4");
+  });
+
+  it("writes an amount as text the server understands", () => {
+    expect(portionText(bowl, 0.5)).toBe("1/2 small bowl");
+    expect(portionText(bowl, 1)).toBe("1 small bowl");
+    expect(portionText(bowl, 2)).toBe("2 small bowls");
+    expect(portionText(container, 0.25)).toBe("1/4 container");
+    expect(portionText(grams, 150)).toBe("150 g");
+  });
+
+  it("works out grams and a readable summary", () => {
+    expect(portionGrams(bowl, 2)).toBe(246);
+    expect(portionGrams(container, 0.25)).toBe(42.5);
+    expect(portionSummary(bowl, 1)).toBe("about 4.3 oz (123 g)");
+    expect(portionSummary(bowl, 4)).toBe("about 17 oz (492 g)");
+    expect(portionSummary(grams, 150)).toBe("150 g");
+  });
+
+  it("marks rough sizes with their size on the wheel", () => {
+    expect(portionItemLabel(bowl)).toBe("small bowl ~4.3 oz");
+    expect(portionItemLabel(container)).toBe("container (170 g)");
+    expect(portionItemLabel(grams)).toBe("g");
+  });
+
+  it("keeps a quantity the new unit offers, else starts sensibly", () => {
+    expect(startQuantity(bowl, 2)).toBe(2);
+    expect(startQuantity(bowl, 150)).toBe(1);
+    expect(startQuantity(grams, 1)).toBe(100);
+    expect(startQuantity(container)).toBe(1);
+  });
+
+  it("starts on the food's own serving, else grams", () => {
+    expect(defaultChoice([bowl, container, grams])).toEqual({
+      label: "container",
+      quantity: 1,
+    });
+    expect(defaultChoice([bowl, grams])).toEqual({ label: "g", quantity: 100 });
+    expect(defaultChoice([])).toBeNull();
   });
 });

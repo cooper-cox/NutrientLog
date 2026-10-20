@@ -8,7 +8,7 @@ food's own serving list.
 """
 
 import re
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
@@ -123,8 +123,11 @@ def singular(word: str) -> str:
     return word
 
 
-def parse_amount(text: str) -> Amount:
-    """Read "1/2 cup flour", "1 1/2 tbsp", "½ cup", "100g peanut butter" or "2 bars"."""
+def parse_amount(text: str, units: Collection[str] = ()) -> Amount:
+    """Read "1/2 cup flour", "1 1/2 tbsp", "½ cup", "100g peanut butter" or "2 bars".
+
+    `units` are unit names of more than one word ("small bowl") that should be read as one unit.
+    """
     match = _QUANTITY.match(text)
     if not match:
         raise AmountError("Start with a number, like '1/2 cup' or '100 g'.")
@@ -132,7 +135,16 @@ def parse_amount(text: str) -> Amount:
     if not 0 < quantity <= MAX_QUANTITY:
         raise AmountError("The amount must be more than 0 and not absurdly large.")
     words = text[match.end() :].replace(".", " ").split()
+    if words and words[0].lower() == "of":  # "1/4 of a tub", "half of the package"
+        words = words[1:]
+        if words and words[0].lower() in ("a", "an", "the"):
+            words = words[1:]
     unit: str | None = None
+    for known in sorted((u for u in units if " " in u), key=len, reverse=True):
+        size = len(known.split())
+        spoken = [w.lower().rstrip(",;:") for w in words[:size]]
+        if len(spoken) == size and [*spoken[:-1], singular(spoken[-1])] == known.split():
+            return Amount(quantity=quantity, unit=known, food=" ".join(words[size:]))
     if words and words[0].lower() in ("fl", "fluid") and len(words) > 1:
         if words[1].lower() in ("oz", "ounce", "ounces"):
             unit, words = "fl oz", words[2:]

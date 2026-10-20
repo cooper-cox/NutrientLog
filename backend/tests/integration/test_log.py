@@ -270,3 +270,11 @@ def test_the_month_is_private(
     theirs = client.get(f"{LOG}/month", headers=other_auth).json()
     assert sum(d["entries"] for d in theirs["days"]) == 0
     assert client.get(f"{LOG}/month").status_code == 401
+
+
+def test_an_amount_can_be_changed_to_a_rough_size(client: TestClient, auth: dict[str, str]) -> None:
+    food_id = save_food(client, auth)
+    entry_id = eat(client, auth, food_id, 68, amount_text="1 bar").json()["id"]
+    reply = client.patch(f"{LOG}/{entry_id}", headers=auth, json={"amount_text": "1 large portion"})
+    assert reply.status_code == 200
+    assert reply.json()["grams"] == pytest.approx(102)  # one and a half bars

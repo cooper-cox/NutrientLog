@@ -126,6 +126,37 @@ export async function getMeasures(
   return reply.servings;
 }
 
+/** One choice on the amount wheel. `grams` is the weight of ONE of it. */
+export type Portion = {
+  label: string;
+  grams: number;
+  /** "own": the food's own serving; "rough": an estimate (bowl, plate); "exact": g, oz, cup... */
+  kind: "own" | "rough" | "exact";
+  /** For rough sizes: "about 4.3 oz (123 g)". */
+  note: string;
+  /** How many of it the wheel offers: 0.25, 0.5, 1, 1.5, 2... */
+  quantities: number[];
+};
+
+/** The choices for "how much?" for one food: its own servings, rough sizes, exact units. */
+export async function getPortions(
+  foodName: string,
+  servings: Serving[],
+): Promise<Portion[]> {
+  const reply = await apiRequest<{ portions: Portion[] }>(
+    "POST",
+    "/api/v1/foods/portions",
+    {
+      token: await token(),
+      body: {
+        food_name: foodName,
+        servings: servings.map(({ label, grams }) => ({ label, grams })),
+      },
+    },
+  );
+  return reply.portions;
+}
+
 export async function saveFood(food: FoodToSave): Promise<SavedFood> {
   return apiRequest<SavedFood>("POST", "/api/v1/foods", {
     token: await token(),

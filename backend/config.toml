@@ -47,6 +47,19 @@ max_servings = 20
 max_serving_grams = 5000.0
 max_serving_label_length = 60
 
+[portions]
+# Rough sizes for "how much did you eat?" when nobody weighed it. Bowls and plates are volumes in
+# US cups, so they only apply to foods whose weight per cup is known. "Small/large portion" scale
+# the food's own serving, for foods where a cup is unknown.
+small_bowl_cups = 0.5
+medium_bowl_cups = 1.0
+large_bowl_cups = 1.75
+small_plate_cups = 1.5
+medium_plate_cups = 2.5
+large_plate_cups = 3.5
+small_portion_factor = 0.5
+large_portion_factor = 1.5
+
 [goals]
 # Calorie-target policy (the formulas themselves are in app/calc/goals.py).
 max_gain_kg_per_week = 0.5

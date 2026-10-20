@@ -6,9 +6,11 @@ import {
   addLogEntry,
   amountToGrams,
   getMeasures,
+  getPortions,
   saveFood,
   searchFoods,
   type FoodCandidate,
+  type Portion,
   type SearchResult,
   type SavedFood,
 } from "../../api/food";
@@ -41,12 +43,31 @@ const SAVED_BANANA: SavedFood = {
 
 const mockSearch = jest.mocked(searchFoods);
 const mockMeasures = jest.mocked(getMeasures);
+const mockPortions = jest.mocked(getPortions);
 const mockSave = jest.mocked(saveFood);
 const mockGrams = jest.mocked(amountToGrams);
 const mockAdd = jest.mocked(addLogEntry);
 
+/** What the server offers for a food: its own servings, then grams and ounces. */
+function portionsFor(servings: { label: string; grams: number }[]): Portion[] {
+  const quantities = [0.5, 1, 2];
+  return [
+    ...servings.map((serving) => ({
+      label: serving.label.replace(/^\d+\s+|\s*\(.*$/g, ""),
+      grams: serving.grams,
+      kind: "own" as const,
+      note: "",
+      quantities,
+    })),
+    { label: "g", grams: 1, kind: "exact", note: "", quantities: [50, 100] },
+  ];
+}
+
 beforeEach(() => {
   jest.resetAllMocks();
+  mockPortions.mockImplementation(async (_name, servings) =>
+    portionsFor(servings),
+  );
   jest.useFakeTimers();
   mockSearch.mockResolvedValue({
     saved: [],
@@ -244,6 +265,9 @@ describe("AddFoodScreen", () => {
     fireEvent.press(await screen.findByLabelText(/^Bananas, raw/));
     await pause();
 
+    fireEvent.press(
+      await screen.findByLabelText("Type an exact amount instead"),
+    );
     // USDA's own measures arrive as quick amounts, and the first one is already typed in.
     expect(mockMeasures).toHaveBeenCalledWith("usda", "173944");
     expect(
@@ -280,6 +304,9 @@ describe("AddFoodScreen", () => {
     renderScreen();
     await type("Search foods", "banana");
     fireEvent.press(await screen.findByLabelText(/^Bananas, raw/));
+    fireEvent.press(
+      await screen.findByLabelText("Type an exact amount instead"),
+    );
     fireEvent.press(await screen.findByLabelText("Use 1 cup, sliced (150 g)"));
     expect(screen.getByLabelText("Amount").props.value).toBe("1 cup, sliced");
   });
@@ -296,6 +323,9 @@ describe("AddFoodScreen", () => {
     const { onAdded } = renderScreen();
     await type("Search foods", "banana");
     fireEvent.press(await screen.findByLabelText(/^Bananas, raw/));
+    fireEvent.press(
+      await screen.findByLabelText("Type an exact amount instead"),
+    );
     await type("Amount", "1 cup");
     expect(await screen.findByText(/don't know how heavy/)).toBeTruthy();
     fireEvent.press(screen.getByLabelText("Add to today"));
@@ -494,5 +524,96 @@ describe("AddFoodScreen", () => {
     await pause(0);
     expect(mockAdd).toHaveBeenCalledWith("food-9", 68, "1 bar", undefined);
     expect(onAdded).toHaveBeenCalled();
+  });
+
+  describe("the amount wheel", () => {
+    async function openBanana() {
+      const view = renderScreen();
+      await type("Search foods", "banana");
+      fireEvent.press(await screen.findByLabelText(/^Bananas, raw/));
+      await pause();
+      return view;
+    }
+
+    it("starts on the food's own serving and adds it without typing", async () => {
+      const { onAdded } = await openBanana();
+      expect(mockPortions).toHaveBeenCalledWith(
+        "Bananas, raw",
+        expect.arrayContaining([{ label: "1 medium (118 g)", grams: 118 }]),
+      );
+      expect(await screen.findByText("105 kcal")).toBeTruthy();
+      expect(screen.getByText("118 g of food")).toBeTruthy();
+      expect(mockGrams).not.toHaveBeenCalled();
+
+      fireEvent.press(screen.getByLabelText("Add to today"));
+      await pause(0);
+      expect(mockAdd).toHaveBeenCalledWith(
+        "food-1",
+        118,
+        "1 medium",
+        undefined,
+      );
+      expect(onAdded).toHaveBeenCalled();
+    });
+
+    it("scrolling the number changes the amount, the calories and what is logged", async () => {
+      await openBanana();
+      await screen.findByText("105 kcal");
+      fireEvent(screen.getByLabelText("How many"), "valueChange", 0.5);
+      expect(await screen.findByText("59 g of food")).toBeTruthy();
+      expect(screen.getByText("53 kcal")).toBeTruthy();
+
+      fireEvent.press(screen.getByLabelText("Add to today"));
+      await pause(0);
+      expect(mockAdd).toHaveBeenCalledWith(
+        "food-1",
+        59,
+        "1/2 medium",
+        undefined,
+      );
+    });
+
+    it("choosing a different unit keeps a quantity it offers, else starts sensibly", async () => {
+      await openBanana();
+      await screen.findByText("105 kcal");
+      fireEvent(screen.getByLabelText("Unit"), "valueChange", "g");
+      expect(await screen.findByText("100 g of food")).toBeTruthy();
+      fireEvent.press(screen.getByLabelText("Add to today"));
+      await pause(0);
+      expect(mockAdd).toHaveBeenCalledWith("food-1", 100, "100 g", undefined);
+    });
+
+    it("rough sizes are marked as estimates and written the way people say them", async () => {
+      mockPortions.mockResolvedValue([
+        {
+          label: "small bowl",
+          grams: 123,
+          kind: "rough",
+          note: "about 4.3 oz (123 g)",
+          quantities: [0.5, 1, 2],
+        },
+        { label: "g", grams: 1, kind: "exact", note: "", quantities: [100] },
+      ]);
+      await openBanana();
+      fireEvent(screen.getByLabelText("Unit"), "valueChange", "small bowl");
+      expect(await screen.findByText("about 4.3 oz (123 g)")).toBeTruthy();
+      fireEvent(screen.getByLabelText("How many"), "valueChange", 2);
+      expect(await screen.findByText("about 8.7 oz (246 g)")).toBeTruthy();
+      fireEvent.press(screen.getByLabelText("Add to today"));
+      await pause(0);
+      expect(mockAdd).toHaveBeenCalledWith(
+        "food-1",
+        246,
+        "2 small bowls",
+        undefined,
+      );
+    });
+
+    it("falls back to typing when the choices cannot be loaded", async () => {
+      mockPortions.mockRejectedValue(new Error("offline"));
+      await openBanana();
+      expect(await screen.findByLabelText("Amount")).toBeTruthy();
+      expect(screen.getByLabelText("Use the wheel instead")).toBeTruthy();
+    });
   });
 });

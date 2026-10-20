@@ -212,6 +212,25 @@ class AmountIn(BaseModel):
     servings: list[ServingIn] = Field(default_factory=list, max_length=50)
 
 
+class PortionsIn(BaseModel):
+    food_name: str = Field(default="", max_length=200)
+    servings: list[ServingIn] = Field(default_factory=list, max_length=50)
+
+
+class PortionOut(BaseModel):
+    """One choice on the amount wheel: `grams` is the weight of ONE of it."""
+
+    label: str
+    grams: float
+    kind: Literal["own", "rough", "exact"]
+    note: str  # for rough sizes: "about 6 oz (170 g)"
+    quantities: list[float]
+
+
+class PortionsOut(BaseModel):
+    portions: list[PortionOut]
+
+
 class AmountOut(BaseModel):
     grams: float
     quantity: float
