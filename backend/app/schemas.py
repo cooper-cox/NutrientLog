@@ -294,6 +294,48 @@ class MonthOut(BaseModel):
     average_calories: float | None
 
 
+class WorkoutIn(BaseModel):
+    """A workout: what, how long, how hard. Calories are estimated unless they are typed in."""
+
+    activity: str = Field(min_length=1, max_length=20)
+    minutes: int = Field(gt=0)
+    intensity: Literal["light", "moderate", "hard"] = "moderate"
+    # Leave out to estimate; send what a watch said to use that instead.
+    calories: float | None = Field(default=None, gt=0)
+    # Leave out for "today, where the person is".
+    logged_on: datetime_date | None = None
+
+
+class WorkoutOut(BaseModel):
+    id: uuid.UUID
+    logged_on: datetime_date
+    activity: str
+    label: str
+    minutes: int
+    intensity: str
+    calories: float
+    calories_typed: bool
+
+
+class ActivityOut(BaseModel):
+    key: str
+    label: str
+
+
+class ActivitiesOut(BaseModel):
+    activities: list[ActivityOut]
+    intensities: list[str]
+    max_minutes: int
+
+
+class BurnedOut(BaseModel):
+    """Calories burned in a day: resting (from the profile; null until there is one) + workouts."""
+
+    resting: float | None
+    workouts: float
+    total: float
+
+
 class DayOut(BaseModel):
     """Everything eaten on one day, the totals, and how that compares with the calorie target."""
 
@@ -305,3 +347,7 @@ class DayOut(BaseModel):
     goal_calories: int | None
     # Goal minus eaten; negative means over. Null until a goal exists.
     remaining_calories: float | None
+    workouts: list[WorkoutOut]
+    burned: BurnedOut
+    # Eaten minus burned: positive is a surplus (good when gaining), negative a deficit.
+    balance_calories: float

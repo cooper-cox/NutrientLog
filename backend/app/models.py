@@ -1,4 +1,5 @@
-"""The database tables: users, settings, goals, foods with nutrients and servings, and the log."""
+"""The database tables: users, settings, goals, foods with nutrients and servings, the food log
+and workouts."""
 
 import uuid
 from datetime import date, datetime
@@ -173,3 +174,22 @@ class LogEntry(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     food: Mapped[Food] = relationship(lazy="joined")
+
+
+class Workout(Base):
+    """One workout on a calendar day. `calories` is what counts: either typed by the person
+    (`calories_typed`) or estimated from the activity, minutes, intensity and their weight."""
+
+    __tablename__ = "workouts"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    logged_on: Mapped[date] = mapped_column(Date, index=True)
+    activity: Mapped[str] = mapped_column(String(20))
+    minutes: Mapped[int]
+    intensity: Mapped[str] = mapped_column(String(10))
+    calories: Mapped[float]
+    calories_typed: Mapped[bool] = mapped_column(default=False, server_default="false")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

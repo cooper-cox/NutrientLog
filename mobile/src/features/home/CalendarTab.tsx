@@ -5,6 +5,7 @@ import { Button } from "../../ui/components";
 import { kcalText } from "../food/amounts";
 import { CalendarView } from "./CalendarView";
 import { dayLabel } from "./dates";
+import { DayBurn } from "./DayBurn";
 import { DayEntries } from "./DayEntries";
 import { NutritionFacts } from "./NutritionFacts";
 import { useDay } from "./useDay";
@@ -84,6 +85,12 @@ export function CalendarTab({ reloadKey }: Props) {
           {dayState.state.day.entries.length > 0 ? (
             <NutritionFacts totals={dayState.state.day.totals} />
           ) : null}
+          <DayBurn
+            day={dayState.state.day}
+            removeWorkout={async (workoutId) => {
+              await dayState.removeWorkout(workoutId);
+            }}
+          />
         </>
       ) : null}
     </View>

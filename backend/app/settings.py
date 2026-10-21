@@ -88,6 +88,28 @@ class Portions(_Section):
         return self
 
 
+class WorkoutActivity(_Section):
+    key: str = Field(pattern=r"^[a-z][a-z0-9_]{1,19}$")
+    label: str = Field(min_length=2, max_length=40)
+    met: float = Field(gt=1.0, le=25)
+
+
+class Workouts(_Section):
+    intensity_light: float = Field(gt=0, lt=1)
+    intensity_moderate: float = Field(gt=0, le=2)
+    intensity_hard: float = Field(gt=1, le=2)
+    max_minutes: int = Field(ge=30, le=1440)
+    max_calories: float = Field(gt=0, le=20000)
+    activities: list[WorkoutActivity] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _keys_are_unique(self) -> "Workouts":
+        keys = [activity.key for activity in self.activities]
+        if len(keys) != len(set(keys)):
+            raise ValueError("workout activity keys must be unique")
+        return self
+
+
 class Activity(_Section):
     sedentary: float = Field(ge=1.0, le=2.5)
     light: float = Field(ge=1.0, le=2.5)
@@ -161,6 +183,7 @@ class Settings(BaseSettings):
     search: Search
     food: FoodLimits
     portions: Portions
+    workouts: Workouts
     goals: Goals
     profile: Profile
 

@@ -13,9 +13,11 @@ import {
   type Month,
   type Week,
 } from "../../api/food";
+import { deleteWorkout } from "../../api/workouts";
 import { HomeScreen } from "./HomeScreen";
 
 jest.mock("../../api/food");
+jest.mock("../../api/workouts");
 
 const PHONE = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
@@ -43,6 +45,9 @@ const DAY: Day = {
   totals: { calories: 105, protein_g: 1.3, fat_g: 0.4, carb_g: 27 },
   goal_calories: 3034,
   remaining_calories: 2929,
+  workouts: [],
+  burned: { resting: 1780, workouts: 0, total: 1780 },
+  balance_calories: -1780,
 };
 
 const mockDay = jest.mocked(getDay);
@@ -87,6 +92,7 @@ beforeEach(() => {
 function renderHome(reloadKey = 0, date: string | null = null) {
   const onDateChange = jest.fn();
   const onAddFood = jest.fn();
+  const onAddWorkout = jest.fn();
   const onShowTargets = jest.fn();
   const view = render(
     <SafeAreaProvider initialMetrics={PHONE}>
@@ -96,13 +102,25 @@ function renderHome(reloadKey = 0, date: string | null = null) {
         reloadKey={reloadKey}
         date={date}
         onDateChange={onDateChange}
+        onAddWorkout={onAddWorkout}
         onAddFood={onAddFood}
         onShowTargets={onShowTargets}
       />
     </SafeAreaProvider>,
   );
-  return { onAddFood, onShowTargets, onDateChange, view };
+  return { onAddFood, onAddWorkout, onShowTargets, onDateChange, view };
 }
+
+const WORKOUT = {
+  id: "w1",
+  logged_on: "2026-10-18",
+  activity: "walking",
+  label: "Walking",
+  minutes: 60,
+  intensity: "moderate",
+  calories: 200,
+  calories_typed: false,
+};
 
 describe("HomeScreen", () => {
   it("shows calories left, what was eaten and the macros so far", async () => {
@@ -152,6 +170,7 @@ describe("HomeScreen", () => {
           reloadKey={1}
           date={null}
           onDateChange={jest.fn()}
+          onAddWorkout={jest.fn()}
           onAddFood={jest.fn()}
           onShowTargets={jest.fn()}
         />
@@ -360,5 +379,67 @@ describe("HomeScreen", () => {
     expect(
       screen.getByLabelText("New amount for Bananas, raw").props.autoFocus,
     ).toBe(true);
+  });
+
+  describe("calories burned", () => {
+    it("shows what was burned, the balance and the workouts", async () => {
+      mockDay.mockResolvedValue({
+        ...DAY,
+        workouts: [WORKOUT],
+        burned: { resting: 1780, workouts: 200, total: 1980 },
+        balance_calories: -1875,
+      });
+      renderHome();
+      expect(await screen.findByText("1,980 kcal")).toBeTruthy();
+      expect(
+        screen.getByText(/1,780 kcal resting \+ 200 kcal workouts/),
+      ).toBeTruthy();
+      expect(
+        screen.getByText("1,875 kcal deficit (burned more than eaten)"),
+      ).toBeTruthy();
+      expect(screen.getByText("Walking")).toBeTruthy();
+      expect(
+        screen.getByText("60 min · moderate · about 200 kcal"),
+      ).toBeTruthy();
+    });
+
+    it("calls a gain a surplus", async () => {
+      mockDay.mockResolvedValue({ ...DAY, balance_calories: 320 });
+      renderHome();
+      expect(
+        await screen.findByText("320 kcal surplus (eaten more than burned)"),
+      ).toBeTruthy();
+    });
+
+    it("says when the resting burn is not known yet", async () => {
+      mockDay.mockResolvedValue({
+        ...DAY,
+        burned: { resting: null, workouts: 0, total: 0 },
+      });
+      renderHome();
+      expect(
+        await screen.findByText(/Resting burn unknown until your profile/),
+      ).toBeTruthy();
+    });
+
+    it("has an Add workout button that opens the workout screen", async () => {
+      const { onAddWorkout } = renderHome();
+      fireEvent.press(await screen.findByLabelText("Add workout"));
+      expect(onAddWorkout).toHaveBeenCalled();
+    });
+
+    it("removes a workout and reloads the day", async () => {
+      jest.mocked(deleteWorkout).mockResolvedValue(undefined);
+      mockDay.mockResolvedValue({
+        ...DAY,
+        workouts: [WORKOUT],
+        burned: { resting: 1780, workouts: 200, total: 1980 },
+      });
+      renderHome();
+      fireEvent.press(await screen.findByLabelText("Remove Walking workout"));
+      await act(async () => {});
+      expect(deleteWorkout).toHaveBeenCalledWith("w1");
+      expect(mockDay).toHaveBeenCalledTimes(2);
+    });
   });
 });

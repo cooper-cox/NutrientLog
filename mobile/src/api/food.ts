@@ -1,6 +1,7 @@
 /** Calls about foods, amounts and the day's log. Each one signs in with the saved login token. */
 import { getStoredToken } from "../storage/token";
 import { ApiError, apiGet, apiRequest } from "./client";
+import type { Burned, Workout } from "./workouts";
 
 /** Every nutrient we track; null means "unknown", which is not the same as zero. */
 export type Nutrients = Record<string, number | null>;
@@ -72,6 +73,10 @@ export type Day = {
   totals: Nutrients;
   goal_calories: number | null;
   remaining_calories: number | null;
+  workouts: Workout[];
+  burned: Burned;
+  /** Eaten minus burned: positive is a surplus, negative a deficit. */
+  balance_calories: number;
 };
 
 export type WeekDay = {

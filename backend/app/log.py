@@ -10,7 +10,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import profiles
+from app import profiles, workouts
 from app.calc import dates
 from app.calc.goals import InvalidInputError, Problem
 from app.calc.nutrients import KEYS, scale_nutrients, sum_nutrients
@@ -18,6 +18,7 @@ from app.calc.portions import grams_for_text
 from app.foods import find_visible
 from app.models import Food, LogEntry, User
 from app.schemas import (
+    BurnedOut,
     DayOut,
     LogEntryIn,
     LogEntryOut,
@@ -89,6 +90,12 @@ def day(session: Session, user: User, on: date, today: date) -> DayOut:
     totals = sum_nutrients(entry.nutrients for entry in entries)
     goal = profiles.get_current_goal(session, user)
     eaten = totals.get("calories") or 0.0
+    done = [workouts.workout_out(w) for w in workouts.for_day(session, user, on)]
+    workout_total = round(sum(w.calories for w in done), 1)
+    resting = round(goal.bmr) if goal else None
+    burned = BurnedOut(
+        resting=resting, workouts=workout_total, total=(resting or 0) + workout_total
+    )
     return DayOut(
         date=on,
         today=today,
@@ -96,6 +103,9 @@ def day(session: Session, user: User, on: date, today: date) -> DayOut:
         totals={key: totals.get(key) for key in KEYS},
         goal_calories=goal.calories if goal else None,
         remaining_calories=goal.calories - eaten if goal else None,
+        workouts=done,
+        burned=burned,
+        balance_calories=eaten - burned.total,
     )
 
 
