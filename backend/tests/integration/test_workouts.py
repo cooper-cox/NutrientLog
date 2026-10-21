@@ -141,3 +141,32 @@ def test_nobody_else_can_see_or_remove_a_workout(
     assert client.get(LOG, headers=other_auth).json()["workouts"] == []
     assert client.delete(f"{WORKOUTS}/{workout_id}", headers=other_auth).status_code == 404
     assert len(client.get(LOG, headers=auth).json()["workouts"]) == 1
+
+
+def test_the_calendar_and_week_show_which_days_had_workouts(
+    client: TestClient, auth: dict[str, str]
+) -> None:
+    with_profile(client, auth)
+    walk(client, auth, logged_on="2026-10-05")
+    walk(client, auth, activity="running", minutes=20, logged_on="2026-10-05")
+    walk(client, auth, activity="weights", minutes=45, logged_on="2026-10-07")
+    month = client.get(f"{LOG}/month?month=2026-10", headers=auth).json()
+    by_day = {d["date"]: d["workouts"] for d in month["days"]}
+    # Inside one test transaction both rows get the same timestamp, so only the set is checked.
+    assert sorted(by_day["2026-10-05"]) == ["Run", "Walk"]
+    assert by_day["2026-10-07"] == ["Lift"]
+    assert by_day["2026-10-06"] == []
+    # A day with a workout but no food still shows it.
+    assert next(d for d in month["days"] if d["date"] == "2026-10-07")["entries"] == 0
+    week = client.get(f"{LOG}/week?end=2026-10-08", headers=auth).json()
+    monday = {d["date"]: d["workouts"] for d in week["days"]}["2026-10-05"]
+    assert sorted(monday) == ["Run", "Walk"]
+
+
+def test_other_peoples_workouts_never_show_on_my_calendar(
+    client: TestClient, auth: dict[str, str], other_auth: dict[str, str]
+) -> None:
+    with_profile(client, auth)
+    walk(client, auth, logged_on="2026-10-05")
+    month = client.get(f"{LOG}/month?month=2026-10", headers=other_auth).json()
+    assert all(d["workouts"] == [] for d in month["days"])

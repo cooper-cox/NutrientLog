@@ -118,3 +118,19 @@ def for_day(session: Session, user: User, on: date) -> list[Workout]:
         .order_by(Workout.created_at, Workout.id)
     )
     return list(session.scalars(statement))
+
+
+def short_names_by_day(
+    session: Session, user: User, start: date, end: date
+) -> dict[date, list[str]]:
+    """The short names of the workouts done on each day from `start` to `end`, in the order done."""
+    short = {a.key: a.short for a in settings.workouts.activities}
+    statement = (
+        select(Workout)
+        .where(Workout.user_id == user.id, Workout.logged_on >= start, Workout.logged_on <= end)
+        .order_by(Workout.created_at, Workout.id)
+    )
+    found: dict[date, list[str]] = {}
+    for workout in session.scalars(statement):
+        found.setdefault(workout.logged_on, []).append(short.get(workout.activity, "Other"))
+    return found

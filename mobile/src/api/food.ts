@@ -84,6 +84,8 @@ export type WeekDay = {
   calories: number;
   protein_g: number;
   entries: number;
+  /** Short names of the workouts done that day ("Run", "Lift"), in the order done. */
+  workouts: string[];
 };
 
 export type Week = {

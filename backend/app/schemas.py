@@ -272,6 +272,8 @@ class WeekDayOut(BaseModel):
     calories: float
     protein_g: float
     entries: int
+    # Short names of the workouts done that day ("Run", "Lift"), for the calendar.
+    workouts: list[str] = Field(default_factory=list)
 
 
 class WeekOut(BaseModel):

@@ -91,6 +91,7 @@ class Portions(_Section):
 class WorkoutActivity(_Section):
     key: str = Field(pattern=r"^[a-z][a-z0-9_]{1,19}$")
     label: str = Field(min_length=2, max_length=40)
+    short: str = Field(min_length=2, max_length=6)
     met: float = Field(gt=1.0, le=25)
 
 

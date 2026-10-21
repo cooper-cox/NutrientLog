@@ -16,6 +16,7 @@ function october(): Month {
         calories: day === 17 ? 3200 : day === 16 ? 2000 : 0,
         protein_g: 0,
         entries: day === 17 || day === 16 ? 2 : 0,
+        workouts: day === 16 ? ["Run", "Lift"] : day === 14 ? ["Walk"] : [],
       };
     }),
   };
@@ -41,7 +42,9 @@ describe("CalendarView", () => {
     expect(screen.getByText("October 2026")).toBeTruthy();
     expect(screen.getByLabelText("October 1, nothing logged")).toBeTruthy();
     expect(screen.getByLabelText("October 31, nothing logged")).toBeTruthy();
-    expect(screen.getByLabelText("October 16, 2000 kcal")).toBeTruthy();
+    expect(
+      screen.getByLabelText("October 16, 2000 kcal, workout: Run, Lift"),
+    ).toBeTruthy();
   });
 
   it("opens a tapped day, including one with nothing logged", () => {
@@ -77,6 +80,7 @@ describe("CalendarView", () => {
           date: d.date.replace("-10-", "-09-"),
           calories: 0,
           entries: 0,
+          workouts: [],
         })),
       average_calories: null,
     };
@@ -86,6 +90,30 @@ describe("CalendarView", () => {
     expect(screen.getByText("Nothing logged this month yet.")).toBeTruthy();
     // Every day of an earlier month can be opened.
     expect(screen.getByLabelText("September 30, nothing logged")).toBeTruthy();
+  });
+
+  it("shows what workout was done under the day, even with no food logged", () => {
+    show(october());
+    expect(screen.getByText("Walk")).toBeTruthy(); // the 14th: no food, a walk
+    expect(screen.getByText("Run +1")).toBeTruthy(); // the 16th: two workouts
+    expect(
+      screen.getByLabelText("October 14, nothing logged, workout: Walk"),
+    ).toBeTruthy();
+    expect(
+      screen.getByLabelText("October 16, 2000 kcal, workout: Run, Lift"),
+    ).toBeTruthy();
+    expect(screen.queryByText("Lift")).toBeNull();
+  });
+
+  it("counts the days worked out this month", () => {
+    show(october());
+    expect(screen.getByText("Worked out 2 days this month")).toBeTruthy();
+  });
+
+  it("says so when there were no workouts", () => {
+    const month = october();
+    show({ ...month, days: month.days.map((d) => ({ ...d, workouts: [] })) });
+    expect(screen.getByText("No workouts logged this month.")).toBeTruthy();
   });
 
   it("explains the colours and shows the average", () => {

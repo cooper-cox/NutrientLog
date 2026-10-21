@@ -66,6 +66,7 @@ const MONTH: Month = {
     calories: i === 16 ? 2800 : 0,
     protein_g: 0,
     entries: i === 16 ? 1 : 0,
+    workouts: [],
   })),
 };
 
@@ -76,6 +77,7 @@ const WEEK: Week = {
     calories: i === 6 ? 2500 : i === 5 ? 3100 : 0,
     protein_g: 0,
     entries: i >= 5 ? 2 : 0,
+    workouts: [],
   })),
   goal_calories: 3034,
   average_calories: 2800,
