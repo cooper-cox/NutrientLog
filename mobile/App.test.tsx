@@ -36,6 +36,9 @@ const DAY: Day = {
   totals: {},
   goal_calories: 3034,
   remaining_calories: 3034,
+  workouts: [],
+  burned: { resting: 1780, workouts: 0, total: 1780 },
+  balance_calories: -1780,
 };
 
 const PROFILE: Profile = {

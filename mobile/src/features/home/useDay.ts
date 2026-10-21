@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiError } from "../../api/client";
+import { deleteWorkout } from "../../api/workouts";
 import {
   changeLogEntry,
   deleteLogEntry,
@@ -53,6 +54,18 @@ export function useDay(reloadKey: number, date: string | null) {
     [load],
   );
 
+  const removeWorkout = useCallback(
+    async (workoutId: string) => {
+      try {
+        await deleteWorkout(workoutId);
+      } catch {
+        // The reload below shows what is really there.
+      }
+      load();
+    },
+    [load],
+  );
+
   /** Rejects with the reason (shown to the person) if the new amount can't be understood. */
   const changeAmount = useCallback(
     async (entryId: string, text: string) => {
@@ -62,5 +75,5 @@ export function useDay(reloadKey: number, date: string | null) {
     [load],
   );
 
-  return { state, reload: load, remove, changeAmount };
+  return { state, reload: load, remove, removeWorkout, changeAmount };
 }

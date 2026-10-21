@@ -60,6 +60,78 @@ large_plate_cups = 3.5
 small_portion_factor = 0.5
 large_portion_factor = 1.5
 
+[workouts]
+# Calories burned by a logged workout = (MET - 1) x body weight (kg) x hours x intensity factor.
+# MET says how hard an activity is compared with sitting still; the "- 1" leaves out the resting
+# burn, which the app already counts separately. A person can type the calories instead (for
+# example from a watch). Values are standard figures from the Compendium of Physical Activities.
+# `short` is the few letters shown on a calendar day.
+intensity_light = 0.8
+intensity_moderate = 1.0
+intensity_hard = 1.25
+max_minutes = 600
+max_calories = 5000.0
+
+[[workouts.activities]]
+key = "walking"
+label = "Walking"
+short = "Walk"
+met = 3.5
+
+[[workouts.activities]]
+key = "running"
+label = "Running"
+short = "Run"
+met = 9.8
+
+[[workouts.activities]]
+key = "cycling"
+label = "Cycling"
+short = "Bike"
+met = 7.5
+
+[[workouts.activities]]
+key = "swimming"
+label = "Swimming"
+short = "Swim"
+met = 6.0
+
+[[workouts.activities]]
+key = "weights"
+label = "Weight training"
+short = "Lift"
+met = 5.0
+
+[[workouts.activities]]
+key = "hiit"
+label = "HIIT / circuit"
+short = "HIIT"
+met = 8.0
+
+[[workouts.activities]]
+key = "sports"
+label = "Sports (ball games)"
+short = "Sport"
+met = 7.0
+
+[[workouts.activities]]
+key = "hiking"
+label = "Hiking"
+short = "Hike"
+met = 6.0
+
+[[workouts.activities]]
+key = "yoga"
+label = "Yoga / stretching"
+short = "Yoga"
+met = 2.5
+
+[[workouts.activities]]
+key = "other"
+label = "Other exercise"
+short = "Other"
+met = 4.5
+
 [goals]
 # Calorie-target policy (the formulas themselves are in app/calc/goals.py).
 max_gain_kg_per_week = 0.5

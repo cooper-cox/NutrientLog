@@ -16,6 +16,7 @@ import { kcalText } from "../food/amounts";
 import { dayLabel, shiftDate, shortDate } from "./dates";
 import { useDay } from "./useDay";
 import { CalendarTab } from "./CalendarTab";
+import { DayBurn } from "./DayBurn";
 import { DayEntries } from "./DayEntries";
 import { WeekTab } from "./WeekTab";
 
@@ -28,6 +29,7 @@ type Props = {
   date: string | null;
   onDateChange: (date: string | null) => void;
   onAddFood: () => void;
+  onAddWorkout: () => void;
   onShowTargets: () => void;
 };
 
@@ -74,10 +76,14 @@ export function HomeScreen({
   date,
   onDateChange,
   onAddFood,
+  onAddWorkout,
   onShowTargets,
 }: Props) {
   const insets = useSafeAreaInsets();
-  const { state, reload, remove, changeAmount } = useDay(reloadKey, date);
+  const { state, reload, remove, removeWorkout, changeAmount } = useDay(
+    reloadKey,
+    date,
+  );
   const [view, setView] = useState<"day" | "week" | "calendar">("day");
   const shown = state.kind === "ready" ? state.day.date : date;
   const today = state.kind === "ready" ? state.day.today : null;
@@ -207,6 +213,13 @@ export function HomeScreen({
                 isToday={isToday}
                 remove={remove}
                 changeAmount={changeAmount}
+              />
+
+              <DayBurn day={state.day} removeWorkout={removeWorkout} />
+              <Button
+                title={isToday ? "Add workout" : `Add workout to ${label}`}
+                onPress={onAddWorkout}
+                secondary
               />
             </>
           ) : null}

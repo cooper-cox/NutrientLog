@@ -8,7 +8,7 @@ their group.
 could ride along with another milestone. *Before others* means it must be fixed before anyone but
 the author uses the app.
 
-Last reviewed after: the amount wheel.
+Last reviewed after: calories burned.
 
 ---
 
@@ -372,3 +372,18 @@ their job. Today's survey is a deliberately simple first version. These items, t
     bowl once, and "small bowl" means yours); show the estimate in the log so it is clear which
     entries were guesses.
   - Revisit: after the prototype, with the personalization work.
+
+## G. Added with calories burned
+
+- [ ] **L49. The "balance" leaves out everyday movement, and workout calories are estimates.**
+  The balance is eaten minus (resting burn + logged workouts). Walking around, standing and
+  physical jobs burn real calories that are not in it, so a day with no workouts looks like a
+  deficit even at maintenance. Workout calories come from a standard MET table, your weight at
+  the last profile save, the minutes and a three-step intensity; real burn varies by 20 to 30
+  percent between people, and watches differ too. Resting burn is the formula's estimate (L5).
+  - Why: you asked for resting burn plus workouts, and it keeps the number easy to understand.
+  - Fix: an everyday-movement allowance from the activity level (so the balance matches the
+    target), per-workout heart-rate or watch import, and judging the balance against the real
+    weight trend (L5). Also: editing a workout, and the eat-back setting from the plan.
+  - Revisit: with the weight log (v0.4) and workouts (v0.5).
+

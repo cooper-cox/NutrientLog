@@ -7,6 +7,7 @@ import { formFromProfile } from "./src/features/onboarding/survey";
 import { OnboardingScreen } from "./src/features/onboarding/OnboardingScreen";
 import { HealthScreen } from "./src/features/health/HealthScreen";
 import { AddFoodScreen } from "./src/features/food/AddFoodScreen";
+import { WorkoutScreen } from "./src/features/workout/WorkoutScreen";
 import { HomeScreen } from "./src/features/home/HomeScreen";
 import { ResultsScreen } from "./src/features/results/ResultsScreen";
 import { useSession } from "./src/features/session/session";
@@ -15,8 +16,10 @@ import { Button } from "./src/ui/components";
 function Screens() {
   const { state, retry, setSaved } = useSession();
   const [editing, setEditing] = useState(false);
-  const [page, setPage] = useState<"home" | "add" | "targets">("home");
-  // Bumped when food is added, so the home screen reloads today.
+  const [page, setPage] = useState<"home" | "add" | "workout" | "targets">(
+    "home",
+  );
+  // Bumped when food or a workout is added, so the home screen reloads today.
   const [added, setAdded] = useState(0);
   // The day being looked at (YYYY-MM-DD); null is today. Kept here so Add food adds to it.
   const [viewDate, setViewDate] = useState<string | null>(null);
@@ -73,6 +76,15 @@ function Screens() {
           }}
           onBack={() => setPage("home")}
         />
+      ) : page === "workout" ? (
+        <WorkoutScreen
+          date={viewDate}
+          onAdded={() => {
+            setAdded((count) => count + 1);
+            setPage("home");
+          }}
+          onBack={() => setPage("home")}
+        />
       ) : page === "targets" ? (
         <ResultsScreen
           profile={state.profile}
@@ -89,6 +101,7 @@ function Screens() {
           date={viewDate}
           onDateChange={setViewDate}
           onAddFood={() => setPage("add")}
+          onAddWorkout={() => setPage("workout")}
           onShowTargets={() => setPage("targets")}
         />
       );

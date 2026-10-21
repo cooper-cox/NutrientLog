@@ -15,12 +15,13 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app import auth, foods, log, profiles
+from app import auth, foods, log, profiles, workouts
 from app.auth import CurrentUser
 from app.calc.portions import grams_for_text, portion_options
 from app.calc.profile_check import limits
 from app.db import get_session
 from app.schemas import (
+    ActivitiesOut,
     AmountIn,
     AmountOut,
     DatabaseHealthResponse,
@@ -45,6 +46,8 @@ from app.schemas import (
     ServingIn,
     UserCreated,
     WeekOut,
+    WorkoutIn,
+    WorkoutOut,
 )
 from app.settings import settings
 from app.sources import FoodSource, FoodSourceError
@@ -327,4 +330,32 @@ def delete_log_entry(entry_id: uuid.UUID, user: CurrentUser, session: SessionDep
     """Remove a mistake. Only your own entries can be removed (anything else is a 404)."""
     if not log.remove_entry(session, user, entry_id):
         raise HTTPException(status_code=404, detail="That entry was not found.")
+    return Response(status_code=204)
+
+
+# --- workouts ---
+
+
+@v1.get("/workouts/activities", response_model=ActivitiesOut, tags=["workouts"])
+def workout_activities(user: CurrentUser) -> ActivitiesOut:
+    """The activities and intensities a workout can be logged with."""
+    return workouts.activities_out()
+
+
+@v1.post("/workouts", response_model=WorkoutOut, status_code=201, tags=["workouts"])
+def add_workout(
+    data: WorkoutIn,
+    user: CurrentUser,
+    session: SessionDep,
+    now: Annotated[datetime, Depends(utc_now)],
+) -> WorkoutOut:
+    """Log a workout. Calories are estimated from the person's weight unless they are sent."""
+    today = log.today_for(user, now)
+    return workouts.workout_out(workouts.add_workout(session, user, data, today))
+
+
+@v1.delete("/workouts/{workout_id}", status_code=204, tags=["workouts"])
+def delete_workout(workout_id: uuid.UUID, user: CurrentUser, session: SessionDep) -> Response:
+    if not workouts.remove_workout(session, user, workout_id):
+        raise HTTPException(status_code=404, detail="workout not found")
     return Response(status_code=204)
