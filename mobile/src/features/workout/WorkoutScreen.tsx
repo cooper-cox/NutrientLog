@@ -61,17 +61,19 @@ const INTENSITIES = [
 
 /** The bars for one Sunday-to-Saturday week: minutes a day, with the viewed day in orange. */
 export function weekChart(week: Week, today: string) {
-  const longest = Math.max(0, ...week.days.map((d) => d.workout_minutes));
+  // `?? 0` so an older backend that does not send workout_minutes shows empty bars, not NaN.
+  const mins = week.days.map((d) => d.workout_minutes ?? 0);
+  const longest = Math.max(0, ...mins);
   const top = Math.max(60, Math.ceil(longest / 30) * 30);
   const workouts = week.days.reduce((n, d) => n + d.workouts.length, 0);
-  const minutes = week.days.reduce((n, d) => n + d.workout_minutes, 0);
+  const minutes = mins.reduce((n, m) => n + m, 0);
   return {
     top,
     workouts,
     minutes,
-    bars: week.days.map((d) => ({
+    bars: week.days.map((d, i) => ({
       label: `${weekdayShort(d.date)}\n${monthDay(d.date)}`,
-      fraction: d.date > today ? null : d.workout_minutes / top,
+      fraction: d.date > today ? null : mins[i] / top,
       today: d.date === today,
     })),
   };
@@ -351,8 +353,11 @@ export function WorkoutScreen({
   );
 }
 
+/** The iPhone wheel is always 216 high and cannot shrink, so it sits in a clipped, shorter box. */
+const NATIVE_WHEEL_HEIGHT = 216;
 const WHEEL_HEIGHT = 132;
-const BAND_HEIGHT = 38;
+/** About the height of the wheel's own selected row. */
+const BAND_HEIGHT = 36;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
@@ -379,9 +384,17 @@ const styles = StyleSheet.create({
     marginVertical: 12,
     paddingHorizontal: 8,
   },
-  activity: { flex: 5, marginRight: 8, justifyContent: "center" },
-  minutes: { flex: 3, justifyContent: "center" },
-  wheel: { height: WHEEL_HEIGHT },
+  activity: {
+    flex: 5,
+    marginRight: 8,
+    height: WHEEL_HEIGHT,
+    overflow: "hidden",
+  },
+  minutes: { flex: 3, height: WHEEL_HEIGHT, overflow: "hidden" },
+  wheel: {
+    height: NATIVE_WHEEL_HEIGHT,
+    marginTop: -(NATIVE_WHEEL_HEIGHT - WHEEL_HEIGHT) / 2,
+  },
   band: {
     position: "absolute",
     left: 0,

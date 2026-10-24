@@ -36,8 +36,8 @@ export function WeekBars({
       <View style={styles.plotRow}>
         {ticks ? (
           <View style={[styles.ticks, { height }]}>
-            {ticks.map((tick) => (
-              <Text key={tick} style={styles.tick}>
+            {ticks.map((tick, i) => (
+              <Text key={i} style={styles.tick}>
                 {tick}
               </Text>
             ))}

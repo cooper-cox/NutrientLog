@@ -144,6 +144,20 @@ describe("weekChart", () => {
     };
     expect(weekChart(week, "2026-10-20").top).toBe(120);
   });
+
+  it("shows empty bars, not NaN, when an older backend sends no workout_minutes", () => {
+    const week = {
+      ...WEEK,
+      days: WEEK.days.map((d) => {
+        const { workout_minutes: _gone, ...rest } = d;
+        return rest as typeof d;
+      }),
+    };
+    const chart = weekChart(week, "2026-10-20");
+    expect(chart.minutes).toBe(0);
+    expect(chart.top).toBe(60);
+    expect(chart.bars[2].fraction).toBe(0);
+  });
 });
 
 describe("WorkoutScreen", () => {
