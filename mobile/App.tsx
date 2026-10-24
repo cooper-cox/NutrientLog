@@ -82,6 +82,7 @@ function Screens() {
                 reloadKey={changed}
                 date={viewDate}
                 onCalendar={() => setCalendar(true)}
+                onToday={() => setViewDate(null)}
               />
             ) : tab === "food" ? (
               <FoodScreen
@@ -89,6 +90,7 @@ function Screens() {
                 reloadKey={changed}
                 date={viewDate}
                 onCalendar={() => setCalendar(true)}
+                onToday={() => setViewDate(null)}
                 onChanged={bump}
               />
             ) : tab === "workout" ? (
@@ -96,6 +98,7 @@ function Screens() {
                 reloadKey={changed}
                 date={viewDate}
                 onCalendar={() => setCalendar(true)}
+                onToday={() => setViewDate(null)}
                 onChanged={bump}
               />
             ) : (

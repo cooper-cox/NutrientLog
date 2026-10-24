@@ -7,30 +7,52 @@ export function ScreenHeader({
   title,
   subtitle,
   onCalendar,
+  pastDay = false,
+  onToday,
 }: {
   title: string;
   subtitle?: string;
   onCalendar?: () => void;
+  /** True when the screen shows a day other than today: the date turns orange. */
+  pastDay?: boolean;
+  /** Shown with a "Back to today" button while pastDay is true. */
+  onToday?: () => void;
 }) {
   return (
-    <View style={styles.row}>
-      <View style={styles.text}>
-        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-        <Text style={styles.title} accessibilityRole="header">
-          {title}
-        </Text>
+    <>
+      <View style={styles.row}>
+        <View style={styles.text}>
+          {subtitle ? (
+            <Text style={[styles.subtitle, pastDay && styles.subtitlePast]}>
+              {subtitle}
+            </Text>
+          ) : null}
+          <Text style={styles.title} accessibilityRole="header">
+            {title}
+          </Text>
+        </View>
+        {onCalendar ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open calendar"
+            onPress={onCalendar}
+            style={styles.calendar}
+          >
+            <Text style={styles.calendarText}>Calendar ▾</Text>
+          </Pressable>
+        ) : null}
       </View>
-      {onCalendar ? (
+      {pastDay && onToday ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Open calendar"
-          onPress={onCalendar}
-          style={styles.calendar}
+          accessibilityLabel="Back to today"
+          onPress={onToday}
+          style={styles.today}
         >
-          <Text style={styles.calendarText}>Calendar ▾</Text>
+          <Text style={styles.todayText}>↩ Back to today</Text>
         </Pressable>
       ) : null}
-    </View>
+    </>
   );
 }
 
@@ -44,6 +66,19 @@ const styles = StyleSheet.create({
   },
   text: { flex: 1, paddingRight: 8 },
   subtitle: { fontSize: type.subtitle, color: colors.muted },
+  subtitlePast: { color: colors.accent, fontWeight: "600" },
+  today: {
+    alignSelf: "flex-start",
+    minHeight: 36,
+    paddingHorizontal: 16,
+    marginTop: -4,
+    marginBottom: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    justifyContent: "center",
+  },
+  todayText: { fontSize: 14, fontWeight: "600", color: colors.accent },
   title: {
     fontSize: type.title,
     fontWeight: "700",

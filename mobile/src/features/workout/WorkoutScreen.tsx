@@ -36,6 +36,8 @@ import { parseNumber } from "../food/amounts";
 type Props = {
   /** The day to add to (YYYY-MM-DD); null is today. */
   date: string | null;
+  /** Goes back to today (shown as a button while another day is open). */
+  onToday?: () => void;
   /** Changes after something is added or removed, so the week and the day reload. */
   reloadKey: number;
   onCalendar: () => void;
@@ -120,6 +122,7 @@ export function WorkoutScreen({
   date,
   reloadKey,
   onCalendar,
+  onToday,
   onChanged,
 }: Props) {
   const insets = useSafeAreaInsets();
@@ -197,6 +200,8 @@ export function WorkoutScreen({
         title="Workout"
         subtitle={day ? shortDate(day.date) : undefined}
         onCalendar={onCalendar}
+        pastDay={date !== null && !(day !== null && day.date === day.today)}
+        onToday={onToday}
       />
 
       {day ? <WeekCard reloadKey={reloadKey} day={day.date} /> : null}
@@ -356,8 +361,9 @@ export function WorkoutScreen({
 /** The iPhone wheel is always 216 high and cannot shrink, so it sits in a clipped, shorter box. */
 const NATIVE_WHEEL_HEIGHT = 216;
 const WHEEL_HEIGHT = 132;
-/** About the height of the wheel's own selected row. */
-const BAND_HEIGHT = 36;
+/** The size of the wheel's own grey selected row, so the purple border fits it exactly. */
+const BAND_HEIGHT = 44;
+const BAND_INSET = 9;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
@@ -397,8 +403,8 @@ const styles = StyleSheet.create({
   },
   band: {
     position: "absolute",
-    left: 0,
-    right: 0,
+    left: BAND_INSET,
+    right: BAND_INSET,
     top: (WHEEL_HEIGHT - BAND_HEIGHT) / 2,
     height: BAND_HEIGHT,
     borderRadius: 12,

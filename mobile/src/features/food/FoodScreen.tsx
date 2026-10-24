@@ -30,6 +30,8 @@ type Props = {
   /** The day to add to and show (YYYY-MM-DD); null is today. */
   date: string | null;
   onCalendar: () => void;
+  /** Goes back to today (shown as a button while another day is open). */
+  onToday?: () => void;
   /** Called after food is added, edited or removed, so other screens reload. */
   onChanged: () => void;
 };
@@ -40,6 +42,7 @@ export function FoodScreen({
   reloadKey,
   date,
   onCalendar,
+  onToday,
   onChanged,
 }: Props) {
   const insets = useSafeAreaInsets();
@@ -82,6 +85,8 @@ export function FoodScreen({
           title={page === 0 ? "Food" : "Nutrition"}
           subtitle={`Adding to ${day ? shortDate(day.date) : "today"}`}
           onCalendar={onCalendar}
+          pastDay={!isToday}
+          onToday={onToday}
         />
         <Pressable
           accessibilityRole="button"

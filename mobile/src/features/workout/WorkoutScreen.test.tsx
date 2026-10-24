@@ -81,17 +81,19 @@ beforeEach(() => {
 function renderScreen(date: string | null = null) {
   const onCalendar = jest.fn();
   const onChanged = jest.fn();
+  const onToday = jest.fn();
   render(
     <SafeAreaProvider initialMetrics={PHONE}>
       <WorkoutScreen
         date={date}
         reloadKey={0}
         onCalendar={onCalendar}
+        onToday={onToday}
         onChanged={onChanged}
       />
     </SafeAreaProvider>,
   );
-  return { onCalendar, onChanged };
+  return { onCalendar, onChanged, onToday };
 }
 
 describe("minuteOptions", () => {
@@ -170,6 +172,19 @@ describe("WorkoutScreen", () => {
     ).toBeTruthy();
     expect(screen.getByText(/Sun/)).toBeTruthy();
     expect(mockWeek).toHaveBeenCalledWith("2026-10-24"); // asks for Saturday, so Sunday is first
+  });
+
+  it("offers Back to today only while another day is open", async () => {
+    renderScreen();
+    await screen.findByText("This week");
+    expect(screen.queryByLabelText("Back to today")).toBeNull();
+  });
+
+  it("shows Back to today on an earlier day and goes back when pressed", async () => {
+    mockDay.mockResolvedValue({ ...DAY, date: "2026-10-19" });
+    const { onToday } = renderScreen("2026-10-19");
+    fireEvent.press(await screen.findByLabelText("Back to today"));
+    expect(onToday).toHaveBeenCalled();
   });
 
   it("opens the calendar from the header", async () => {

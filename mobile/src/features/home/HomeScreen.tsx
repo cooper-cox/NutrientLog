@@ -26,6 +26,8 @@ type Props = {
   /** The day being looked at (YYYY-MM-DD); null means today. */
   date: string | null;
   onCalendar: () => void;
+  /** Goes back to today (shown as a button while another day is open). */
+  onToday?: () => void;
 };
 
 function grams(value: number | null): number {
@@ -100,7 +102,13 @@ function weekBars(week: Week, goal: number | null, selected: string) {
 }
 
 /** Home: calories left for the day, last seven days, today's macros and what was burned. */
-export function HomeScreen({ goal, reloadKey, date, onCalendar }: Props) {
+export function HomeScreen({
+  goal,
+  reloadKey,
+  date,
+  onCalendar,
+  onToday,
+}: Props) {
   const insets = useSafeAreaInsets();
   const { state, reload } = useDay(reloadKey, date);
   const weekState = useWeek(reloadKey, date);
@@ -128,6 +136,8 @@ export function HomeScreen({ goal, reloadKey, date, onCalendar }: Props) {
         title={title}
         subtitle={shown ? shortDate(shown) : undefined}
         onCalendar={onCalendar}
+        pastDay={!isToday}
+        onToday={onToday}
       />
 
       {state.kind === "loading" ? (
