@@ -8,6 +8,7 @@ import {
   quantityLabel,
   startQuantity,
 } from "./amounts";
+import { colors, pickerItem } from "../../ui/theme";
 
 type Props = {
   portions: Portion[];
@@ -28,6 +29,7 @@ export function AmountWheel({ portions, unit, quantity, onChange }: Props) {
       <View style={styles.wheels}>
         <Picker
           style={styles.number}
+          itemStyle={pickerItem}
           accessibilityLabel="How many"
           selectedValue={quantity}
           onValueChange={(value: number) => onChange(unit, value)}
@@ -42,6 +44,7 @@ export function AmountWheel({ portions, unit, quantity, onChange }: Props) {
         </Picker>
         <Picker
           style={styles.unit}
+          itemStyle={pickerItem}
           accessibilityLabel="Unit"
           selectedValue={unit}
           onValueChange={(label: string) => {
@@ -72,7 +75,7 @@ const styles = StyleSheet.create({
   summary: {
     textAlign: "center",
     fontSize: 15,
-    color: "#555555",
+    color: colors.muted,
     marginBottom: 8,
   },
 });

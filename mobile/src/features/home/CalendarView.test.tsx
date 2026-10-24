@@ -17,6 +17,7 @@ function october(): Month {
         protein_g: 0,
         entries: day === 17 || day === 16 ? 2 : 0,
         workouts: day === 16 ? ["Run", "Lift"] : day === 14 ? ["Walk"] : [],
+        workout_minutes: day === 16 ? 90 : day === 14 ? 30 : 0,
       };
     }),
   };
@@ -92,10 +93,9 @@ describe("CalendarView", () => {
     expect(screen.getByLabelText("September 30, nothing logged")).toBeTruthy();
   });
 
-  it("shows what workout was done under the day, even with no food logged", () => {
+  it("marks workout days with a dot and names the workouts for screen readers", () => {
     show(october());
-    expect(screen.getByText("Walk")).toBeTruthy(); // the 14th: no food, a walk
-    expect(screen.getByText("Run +1")).toBeTruthy(); // the 16th: two workouts
+    expect(screen.queryByText("Walk")).toBeNull(); // dots only; the names are in the labels
     expect(
       screen.getByLabelText("October 14, nothing logged, workout: Walk"),
     ).toBeTruthy();
@@ -119,8 +119,8 @@ describe("CalendarView", () => {
   it("explains the colours and shows the average", () => {
     show(october());
     expect(screen.getByText(/Average 2500 kcal a day/)).toBeTruthy();
-    expect(
-      screen.getByText(/Green: reached your target \(3000 kcal\)/),
-    ).toBeTruthy();
+    expect(screen.getByText(/Food logged/)).toBeTruthy();
+    expect(screen.getByText(/Reached target \(3000 kcal\)/)).toBeTruthy();
+    expect(screen.getAllByText(/Worked out/).length).toBeGreaterThan(0);
   });
 });

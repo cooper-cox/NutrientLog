@@ -134,3 +134,14 @@ def short_names_by_day(
     for workout in session.scalars(statement):
         found.setdefault(workout.logged_on, []).append(short.get(workout.activity, "Other"))
     return found
+
+
+def minutes_by_day(session: Session, user: User, start: date, end: date) -> dict[date, int]:
+    """Total workout minutes on each day from `start` to `end` (days without any are left out)."""
+    statement = select(Workout).where(
+        Workout.user_id == user.id, Workout.logged_on >= start, Workout.logged_on <= end
+    )
+    found: dict[date, int] = {}
+    for workout in session.scalars(statement):
+        found[workout.logged_on] = found.get(workout.logged_on, 0) + workout.minutes
+    return found

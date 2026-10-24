@@ -387,3 +387,30 @@ their job. Today's survey is a deliberately simple first version. These items, t
     weight trend (L5). Also: editing a workout, and the eat-back setting from the plan.
   - Revisit: with the weight log (v0.4) and workouts (v0.5).
 
+
+## H. Added with the looks and polish step
+
+- [ ] **L50. The font is the iPhone's own, not DM Sans.**
+  The mockups used DM Sans. Loading it means adding the font package and naming a font file per
+  weight in every text style, which is a sweep through the whole app, so v0.1 uses the system
+  font (San Francisco). Colours, sizes and spacing follow the mockups.
+  - Fix: add `@expo-google-fonts/dm-sans` and a font family per weight in `theme.ts`.
+  - Revisit: v0.8 (look and feel).
+- [ ] **L51. The Nutrition page only has targets for calories, protein, fat and carbs.**
+  Fiber, sugar, sodium, calcium, iron and vitamin D show the day's total and each food's share,
+  but no daily goal, because the app does not know the person's targets for them yet
+  (they depend on age, sex and size, and must come from published reference values).
+  - Fix: add per-nutrient targets to the goal (plan section 6, Nutrition, stage 2 and 3).
+  - Revisit: v0.3.
+- [ ] **L52. Food has no "Recent and saved" list yet, and the barcode button is a placeholder.**
+  Search and Add by hand work; foods you saved are found first when searching. The list of
+  recents and the barcode scanner are v0.2 and v0.3 features.
+- [ ] **L53. The education screens are not built.**
+  Explaining what each nutrient and macro is, how to read a nutrition label, and which
+  ingredients to watch for (and why) is a core aim of the app (see `design-decisions.md`).
+  - Revisit: v0.3 (tap any term for an explanation) and a label guide after it.
+- [ ] **L54. Onboarding, the connection check and the amount wheel were recoloured, not redesigned.**
+  They use the new dark colours but keep their old layout. The two native iPhone wheels keep
+  Apple's own grey selection bar; the workout wheels add a border on top, which lines up
+  approximately, not exactly.
+  - Revisit: v0.8.

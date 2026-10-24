@@ -9,7 +9,15 @@ import {
   type Goal,
   type Profile,
 } from "./src/api/endpoints";
-import { getDay, type Day } from "./src/api/food";
+import {
+  getDay,
+  getMonth,
+  getWeek,
+  type Day,
+  type Month,
+  type Week,
+} from "./src/api/food";
+import { getActivities } from "./src/api/workouts";
 import { getStoredToken } from "./src/storage/token";
 
 jest.mock(
@@ -18,6 +26,7 @@ jest.mock(
 );
 jest.mock("./src/api/endpoints");
 jest.mock("./src/api/food");
+jest.mock("./src/api/workouts");
 jest.mock("./src/storage/token");
 jest.mock("./src/config", () => ({
   getApiBaseUrl: () => "http://192.168.1.5:8000",
@@ -28,6 +37,37 @@ const mockGetLimits = jest.mocked(getLimits);
 const mockGetProfile = jest.mocked(getProfile);
 const mockGetGoal = jest.mocked(getCurrentGoal);
 const mockGetDay = jest.mocked(getDay);
+const mockGetWeek = jest.mocked(getWeek);
+const mockGetMonth = jest.mocked(getMonth);
+const mockGetActivities = jest.mocked(getActivities);
+
+const WEEK: Week = {
+  end: "2026-10-18",
+  days: [12, 13, 14, 15, 16, 17, 18].map((d) => ({
+    date: `2026-10-${d}`,
+    calories: 0,
+    protein_g: 0,
+    entries: 0,
+    workouts: [],
+    workout_minutes: 0,
+  })),
+  goal_calories: 3034,
+  average_calories: null,
+};
+const MONTH: Month = {
+  month: "2026-10",
+  today: "2026-10-18",
+  goal_calories: 3034,
+  average_calories: null,
+  days: Array.from({ length: 31 }, (_, i) => ({
+    date: `2026-10-${String(i + 1).padStart(2, "0")}`,
+    calories: 0,
+    protein_g: 0,
+    entries: 0,
+    workouts: [],
+    workout_minutes: 0,
+  })),
+};
 
 const DAY: Day = {
   date: "2026-10-18",
@@ -77,10 +117,20 @@ beforeEach(() => {
     mockGetGoal,
     mockGetLimits,
     mockGetDay,
+    mockGetWeek,
+    mockGetMonth,
+    mockGetActivities,
   ]) {
     mock.mockReset();
   }
   mockGetDay.mockResolvedValue(DAY);
+  mockGetWeek.mockResolvedValue(WEEK);
+  mockGetMonth.mockResolvedValue(MONTH);
+  mockGetActivities.mockResolvedValue({
+    activities: [{ key: "walking", label: "Walking" }],
+    intensities: ["light", "moderate", "hard"],
+    max_minutes: 600,
+  });
   // The survey asks the server for its limits; these tests don't need them.
   mockGetLimits.mockRejectedValue(new ApiError("Could not reach the server."));
 });
@@ -92,62 +142,95 @@ describe("App", () => {
     expect(await screen.findByText("Let’s set your targets")).toBeTruthy();
   });
 
-  it("shows today, with calories left, when the survey is already done", async () => {
+  function ready() {
     mockGetToken.mockResolvedValue("token");
     mockGetProfile.mockResolvedValue(PROFILE);
     mockGetGoal.mockResolvedValue(GOAL);
+  }
 
+  it("shows Home, with calories left and the four tabs, when the survey is already done", async () => {
+    ready();
     render(<App />);
-
-    expect(await screen.findByText("Cooper")).toBeTruthy();
     expect(await screen.findByLabelText("3034 calories left")).toBeTruthy();
+    expect(screen.getByText("Today")).toBeTruthy();
+    for (const name of ["Home", "Food", "Workout", "Profile"]) {
+      expect(screen.getByRole("tab", { name })).toBeTruthy();
+    }
+    expect(
+      screen.getByRole("tab", { name: "Home" }).props.accessibilityState
+        .selected,
+    ).toBe(true);
   });
 
-  it("opens the targets from today, and goes back", async () => {
-    mockGetToken.mockResolvedValue("token");
-    mockGetProfile.mockResolvedValue(PROFILE);
-    mockGetGoal.mockResolvedValue(GOAL);
-    render(<App />);
-    await screen.findByText("Cooper");
-
-    fireEvent.press(
-      screen.getByRole("button", { name: "My targets and answers" }),
-    );
-    expect(screen.getByText("Cooper, your daily targets")).toBeTruthy();
-    fireEvent.press(screen.getByRole("button", { name: "Back to today" }));
-    expect(await screen.findByText("Cooper")).toBeTruthy();
-  });
-
-  it("opens the add-food screen and comes back", async () => {
-    mockGetToken.mockResolvedValue("token");
-    mockGetProfile.mockResolvedValue(PROFILE);
-    mockGetGoal.mockResolvedValue(GOAL);
+  it("switches between the four screens with the tab bar", async () => {
+    ready();
     render(<App />);
     await screen.findByLabelText("3034 calories left");
 
-    fireEvent.press(screen.getByRole("button", { name: "Add food" }));
-    expect(screen.getByLabelText("Search foods")).toBeTruthy();
-    fireEvent.press(screen.getByRole("button", { name: "Back" }));
-    expect(await screen.findByText("Cooper")).toBeTruthy();
+    fireEvent.press(screen.getByRole("tab", { name: "Food" }));
+    expect(await screen.findByLabelText("Search foods")).toBeTruthy();
+    expect(
+      screen.getByRole("tab", { name: "Food" }).props.accessibilityState
+        .selected,
+    ).toBe(true);
+
+    fireEvent.press(screen.getByRole("tab", { name: "Workout" }));
+    expect(await screen.findByText("Add a workout")).toBeTruthy();
+
+    fireEvent.press(screen.getByRole("tab", { name: "Profile" }));
+    expect(await screen.findByText("Your goal")).toBeTruthy();
+
+    fireEvent.press(screen.getByRole("tab", { name: "Home" }));
+    expect(await screen.findByLabelText("3034 calories left")).toBeTruthy();
   });
 
-  it("opens the survey again, filled in, when changing answers", async () => {
-    mockGetToken.mockResolvedValue("token");
-    mockGetProfile.mockResolvedValue(PROFILE);
-    mockGetGoal.mockResolvedValue(GOAL);
+  it("opens the calendar over the screen and keeps the tabs usable", async () => {
+    ready();
     render(<App />);
-    await screen.findByText("Cooper");
-    fireEvent.press(
-      screen.getByRole("button", { name: "My targets and answers" }),
-    );
+    await screen.findByLabelText("3034 calories left");
+    fireEvent.press(screen.getByLabelText("Open calendar"));
+    expect(await screen.findByText("October 2026")).toBeTruthy();
+    // The tab bar is still there, and using it closes the calendar.
+    fireEvent.press(screen.getByRole("tab", { name: "Workout" }));
+    expect(screen.queryByText("October 2026")).toBeNull();
+    expect(await screen.findByText("Add a workout")).toBeTruthy();
+  });
 
-    fireEvent.press(screen.getByRole("button", { name: "Change my answers" }));
+  it("closes the calendar with its Close button", async () => {
+    ready();
+    render(<App />);
+    await screen.findByLabelText("3034 calories left");
+    fireEvent.press(screen.getByLabelText("Open calendar"));
+    await screen.findByText("October 2026");
+    fireEvent.press(screen.getByLabelText("Close calendar"));
+    expect(screen.queryByText("October 2026")).toBeNull();
+  });
+
+  it("opens the search from the Food tab and comes back", async () => {
+    ready();
+    render(<App />);
+    await screen.findByLabelText("3034 calories left");
+    fireEvent.press(screen.getByRole("tab", { name: "Food" }));
+    fireEvent.press(await screen.findByLabelText("Search foods"));
+    expect(screen.getByPlaceholderText(/Search, e.g./)).toBeTruthy();
+    fireEvent.press(screen.getByRole("button", { name: "Back" }));
+    expect(await screen.findByText("Eaten today")).toBeTruthy();
+  });
+
+  it("opens the survey again, filled in, from Profile, and returns to Profile on Cancel", async () => {
+    ready();
+    render(<App />);
+    await screen.findByLabelText("3034 calories left");
+    fireEvent.press(screen.getByRole("tab", { name: "Profile" }));
+    fireEvent.press(
+      await screen.findByRole("button", { name: "Edit my answers" }),
+    );
 
     expect(
       screen.getByLabelText("Current weight in kilograms").props.value,
     ).toBe("80");
     fireEvent.press(screen.getByRole("button", { name: "Cancel" }));
-    expect(screen.getByText("3034")).toBeTruthy();
+    expect(await screen.findByText("Your goal")).toBeTruthy();
   });
 
   it("explains a connection problem and offers to try again", async () => {
@@ -164,6 +247,6 @@ describe("App", () => {
     mockGetGoal.mockResolvedValue(GOAL);
     fireEvent.press(screen.getByRole("button", { name: "Try again" }));
 
-    expect(await screen.findByText("Cooper")).toBeTruthy();
+    expect(await screen.findByLabelText("3034 calories left")).toBeTruthy();
   });
 });

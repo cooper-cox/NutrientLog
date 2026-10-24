@@ -6,6 +6,8 @@ import {
   shiftDate,
   shiftMonth,
   shortDate,
+  monthDay,
+  weekStart,
   weekdayShort,
 } from "./dates";
 
@@ -40,5 +42,20 @@ describe("dates", () => {
   it("knows which weekday a month starts on", () => {
     expect(firstWeekday("2026-10")).toBe(4); // Thursday
     expect(firstWeekday("2026-11")).toBe(0); // Sunday
+  });
+});
+
+describe("week helpers", () => {
+  it("finds the Sunday that starts a week", () => {
+    expect(weekStart("2026-10-20")).toBe("2026-10-18"); // a Tuesday
+    expect(weekStart("2026-10-18")).toBe("2026-10-18"); // already a Sunday
+    expect(weekStart("2026-10-24")).toBe("2026-10-18"); // the Saturday
+    expect(weekStart("2026-11-01")).toBe("2026-11-01");
+    expect(weekStart("2026-01-01")).toBe("2025-12-28"); // across a year
+  });
+
+  it("writes a date as mm/dd", () => {
+    expect(monthDay("2026-10-05")).toBe("10/05");
+    expect(monthDay("2026-12-31")).toBe("12/31");
   });
 });

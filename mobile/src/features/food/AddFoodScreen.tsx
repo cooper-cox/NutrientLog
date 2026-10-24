@@ -21,10 +21,13 @@ import {
 import { FoodDetail } from "./FoodDetail";
 import { ManualFood } from "./ManualFood";
 import { useFoodSearch } from "./useFoodSearch";
+import { colors } from "../../ui/theme";
 
 type Props = {
   /** The day to add to (YYYY-MM-DD); null is today. */
   date?: string | null;
+  /** Open on the search box (default) or straight on the add-by-hand form. */
+  start?: "search" | "manual";
   onAdded: () => void;
   onBack: () => void;
 };
@@ -60,10 +63,14 @@ function Row({
 }
 
 /** Find a food (one search box), pick an amount, add it to today. Or type one in by hand. */
-export function AddFoodScreen({ date = null, onAdded, onBack }: Props) {
+export function AddFoodScreen({ date = null, start = "search", onAdded, onBack }: Props) {
   const insets = useSafeAreaInsets();
   const search = useFoodSearch();
-  const [step, setStep] = useState<Step>({ kind: "search" });
+  const [step, setStep] = useState<Step>(
+    start === "manual"
+      ? { kind: "manual", initial: EMPTY_MANUAL, correcting: false }
+      : { kind: "search" },
+  );
 
   if (step.kind === "detail") {
     return (
@@ -104,7 +111,7 @@ export function AddFoodScreen({ date = null, onAdded, onBack }: Props) {
       automaticallyAdjustKeyboardInsets
       contentContainerStyle={[
         styles.content,
-        { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 },
+        { paddingTop: insets.top + 16, paddingBottom: 32 },
       ]}
     >
       <Button title="Back" onPress={onBack} secondary />
@@ -184,26 +191,27 @@ export function AddFoodScreen({ date = null, onAdded, onBack }: Props) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#ffffff" },
+  screen: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 20 },
   title: {
-    fontSize: 24,
+    fontSize: 30,
     fontWeight: "700",
-    color: "#111111",
+    letterSpacing: -0.5,
+    color: colors.text,
     marginVertical: 16,
   },
   spinner: { marginTop: 12 },
-  error: { fontSize: 15, color: "#b00020", marginTop: 10 },
-  warning: { fontSize: 14, color: "#7a5a00", marginTop: 8 },
-  empty: { fontSize: 16, color: "#555555", marginTop: 16, textAlign: "center" },
+  error: { fontSize: 15, color: colors.danger, marginTop: 10 },
+  warning: { fontSize: 14, color: colors.warn, marginTop: 8 },
+  empty: { fontSize: 16, color: colors.muted, marginTop: 16, textAlign: "center" },
   row: {
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#dddddd",
+    borderBottomColor: colors.divider,
   },
-  rowPressed: { backgroundColor: "#f3f3f3" },
-  rowName: { fontSize: 17, fontWeight: "600", color: "#111111" },
-  rowBrand: { fontSize: 14, color: "#555555", marginTop: 2 },
-  rowLine: { fontSize: 14, color: "#333333", marginTop: 2 },
+  rowPressed: { backgroundColor: colors.surface2 },
+  rowName: { fontSize: 17, fontWeight: "600", color: colors.text },
+  rowBrand: { fontSize: 14, color: colors.muted, marginTop: 2 },
+  rowLine: { fontSize: 14, color: colors.text, marginTop: 2 },
   manual: { marginTop: 24 },
 });

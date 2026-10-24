@@ -163,6 +163,20 @@ def test_the_calendar_and_week_show_which_days_had_workouts(
     assert sorted(monday) == ["Run", "Walk"]
 
 
+def test_the_week_adds_up_workout_minutes_for_each_day(
+    client: TestClient, auth: dict[str, str]
+) -> None:
+    with_profile(client, auth)
+    walk(client, auth, minutes=30, logged_on="2026-10-05")
+    walk(client, auth, activity="running", minutes=20, logged_on="2026-10-05")
+    walk(client, auth, activity="weights", minutes=45, logged_on="2026-10-07")
+    week = client.get(f"{LOG}/week?end=2026-10-08", headers=auth).json()
+    minutes = {d["date"]: d["workout_minutes"] for d in week["days"]}
+    assert minutes["2026-10-05"] == 50
+    assert minutes["2026-10-07"] == 45
+    assert minutes["2026-10-06"] == 0
+
+
 def test_other_peoples_workouts_never_show_on_my_calendar(
     client: TestClient, auth: dict[str, str], other_auth: dict[str, str]
 ) -> None:

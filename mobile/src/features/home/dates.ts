@@ -80,3 +80,13 @@ export function monthTitle(month: string): string {
 export function firstWeekday(month: string): number {
   return parts(`${month}-01`).getUTCDay();
 }
+
+/** The Sunday that starts the week containing this date. */
+export function weekStart(iso: string): string {
+  return shiftDate(iso, -parts(iso).getUTCDay());
+}
+
+/** "10/05" for a date (mm/dd). */
+export function monthDay(iso: string): string {
+  return `${iso.slice(5, 7)}/${iso.slice(8, 10)}`;
+}

@@ -274,6 +274,8 @@ class WeekDayOut(BaseModel):
     entries: int
     # Short names of the workouts done that day ("Run", "Lift"), for the calendar.
     workouts: list[str] = Field(default_factory=list)
+    # Total workout minutes that day, for the weekly chart on the Workout screen.
+    workout_minutes: int = 0
 
 
 class WeekOut(BaseModel):

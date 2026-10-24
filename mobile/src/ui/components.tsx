@@ -8,6 +8,7 @@ import {
   type TextInputProps,
   View,
 } from 'react-native';
+import { colors } from './theme';
 
 export const DISCLAIMER =
   'NutrientLog gives general estimates for healthy adults. It is not medical advice. If you are ' +
@@ -47,7 +48,7 @@ export function Input(props: TextInputProps & { hasError?: boolean }) {
   const { hasError, style, ...rest } = props;
   return (
     <TextInput
-      placeholderTextColor="#888888"
+      placeholderTextColor={colors.muted}
       style={[styles.input, hasError && styles.inputError, style]}
       {...rest}
     />
@@ -128,48 +129,48 @@ export function Button({
 
 const styles = StyleSheet.create({
   group: { marginBottom: 22 },
-  label: { fontSize: 17, fontWeight: '600', color: '#111111' },
-  help: { fontSize: 14, color: '#555555', marginTop: 2, lineHeight: 19 },
-  error: { fontSize: 15, color: '#b00020', marginTop: 6 },
+  label: { fontSize: 17, fontWeight: '600', color: colors.text },
+  help: { fontSize: 14, color: colors.muted, marginTop: 2, lineHeight: 19 },
+  error: { fontSize: 15, color: colors.danger, marginTop: 6 },
   input: {
     minHeight: 48,
     marginTop: 8,
     borderWidth: 1,
-    borderColor: '#999999',
+    borderColor: colors.border,
     borderRadius: 10,
     paddingHorizontal: 12,
     fontSize: 18,
-    color: '#111111',
-    backgroundColor: '#ffffff',
+    color: colors.text,
+    backgroundColor: colors.surface,
   },
-  inputError: { borderColor: '#b00020' },
+  inputError: { borderColor: colors.danger },
   choice: {
     minHeight: 48,
     marginTop: 8,
     borderWidth: 1,
-    borderColor: '#999999',
+    borderColor: colors.border,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     justifyContent: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
   },
-  choiceSelected: { backgroundColor: '#111111', borderColor: '#111111' },
-  choiceLabel: { fontSize: 17, color: '#111111' },
-  choiceLabelSelected: { color: '#ffffff' },
-  choiceDetail: { fontSize: 14, color: '#555555', marginTop: 2 },
+  choiceSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
+  choiceLabel: { fontSize: 17, color: colors.text },
+  choiceLabelSelected: { color: colors.onAccent },
+  choiceDetail: { fontSize: 14, color: colors.muted, marginTop: 2 },
   button: {
     marginTop: 8,
     minHeight: 48,
-    borderRadius: 10,
-    backgroundColor: '#111111',
+    borderRadius: 24,
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,
   },
-  buttonSecondary: { backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#111111' },
+  buttonSecondary: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.accent },
   buttonDisabled: { opacity: 0.5 },
   buttonPressed: { opacity: 0.8 },
-  buttonText: { color: '#ffffff', fontSize: 18, fontWeight: '600' },
-  buttonTextSecondary: { color: '#111111' },
+  buttonText: { color: colors.onAccent, fontSize: 18, fontWeight: '600' },
+  buttonTextSecondary: { color: colors.accent },
 });

@@ -32,6 +32,7 @@ import {
   type SurveyForm,
 } from './survey';
 import { useLimits } from './useLimits';
+import { colors } from '../../ui/theme';
 
 /** Long enough for the biggest accepted number with a decimal, e.g. 660.5 */
 const MAX_NUMBER_LENGTH = 5;
@@ -452,13 +453,13 @@ export function OnboardingScreen({ initialForm, onSaved, onCancel }: Props) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#ffffff' },
+  screen: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 20 },
-  title: { fontSize: 30, fontWeight: '700', color: '#111111' },
-  intro: { fontSize: 16, color: '#333333', marginTop: 8, lineHeight: 22 },
+  title: { fontSize: 30, fontWeight: '700', color: colors.text },
+  intro: { fontSize: 16, color: colors.text, marginTop: 8, lineHeight: 22 },
   disclaimer: {
     fontSize: 14,
-    color: '#555555',
+    color: colors.muted,
     marginTop: 12,
     marginBottom: 24,
     lineHeight: 19,
@@ -466,6 +467,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 10 },
   small: { flex: 1 },
   medium: { flex: 1.5 },
-  notice: { fontSize: 14, color: '#7a4b00', marginBottom: 16, lineHeight: 19 },
-  problem: { fontSize: 16, color: '#b00020', marginBottom: 12 },
+  notice: { fontSize: 14, color: colors.warn, marginBottom: 16, lineHeight: 19 },
+  problem: { fontSize: 16, color: colors.danger, marginBottom: 12 },
 });

@@ -2,6 +2,7 @@ import { Picker } from "@react-native-picker/picker";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,16 +11,36 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ApiError } from "../../api/client";
-import { addWorkout, getActivities, type Activities } from "../../api/workouts";
-import { Button, ChoiceGroup, FormGroup, Input } from "../../ui/components";
-import { shortDate } from "../home/dates";
+import type { Week } from "../../api/food";
+import {
+  addWorkout,
+  getActivities,
+  type Activities,
+  type Workout,
+} from "../../api/workouts";
+import { Button, FormGroup, Input } from "../../ui/components";
+import { ScreenHeader } from "../../ui/ScreenHeader";
+import { colors, pickerItem } from "../../ui/theme";
+import {
+  monthDay,
+  shiftDate,
+  shortDate,
+  weekdayShort,
+  weekStart,
+} from "../home/dates";
+import { useDay } from "../home/useDay";
+import { useWeek } from "../home/useWeek";
+import { WeekBars } from "../home/WeekBars";
 import { parseNumber } from "../food/amounts";
 
 type Props = {
   /** The day to add to (YYYY-MM-DD); null is today. */
-  date?: string | null;
-  onAdded: () => void;
-  onBack: () => void;
+  date: string | null;
+  /** Changes after something is added or removed, so the week and the day reload. */
+  reloadKey: number;
+  onCalendar: () => void;
+  /** Called after a workout is added or removed, so other screens reload. */
+  onChanged: () => void;
 };
 
 /** Minutes offered on the wheel: every 5 up to 2 h, every 15 up to 4 h, then every 30. */
@@ -31,15 +52,77 @@ export function minuteOptions(max: number): number[] {
   return options;
 }
 
+/** Two short lines each, so they never run to a third. */
 const INTENSITIES = [
-  { value: "light", label: "Light", detail: "Easy, you could chat" },
-  { value: "moderate", label: "Moderate", detail: "Steady effort" },
-  { value: "hard", label: "Hard", detail: "Breathing hard" },
+  { value: "light", label: "Light", hint: "Easy, you could chat" },
+  { value: "moderate", label: "Moderate", hint: "Sweating a little" },
+  { value: "hard", label: "Hard", hint: "Heavy breathing, minimal breaks" },
 ];
 
-/** Log a workout: pick the activity and minutes on wheels, say how hard, add. */
-export function WorkoutScreen({ date = null, onAdded, onBack }: Props) {
+/** The bars for one Sunday-to-Saturday week: minutes a day, with the viewed day in orange. */
+export function weekChart(week: Week, today: string) {
+  const longest = Math.max(0, ...week.days.map((d) => d.workout_minutes));
+  const top = Math.max(60, Math.ceil(longest / 30) * 30);
+  const workouts = week.days.reduce((n, d) => n + d.workouts.length, 0);
+  const minutes = week.days.reduce((n, d) => n + d.workout_minutes, 0);
+  return {
+    top,
+    workouts,
+    minutes,
+    bars: week.days.map((d) => ({
+      label: `${weekdayShort(d.date)}\n${monthDay(d.date)}`,
+      fraction: d.date > today ? null : d.workout_minutes / top,
+      today: d.date === today,
+    })),
+  };
+}
+
+function WeekCard({ reloadKey, day }: { reloadKey: number; day: string }) {
+  const { state } = useWeek(reloadKey, shiftDate(weekStart(day), 6));
+  const chart = state.kind === "ready" ? weekChart(state.week, day) : null;
+  return (
+    <View style={styles.card}>
+      <View style={styles.cardHead}>
+        <Text style={styles.cardTitle}>This week</Text>
+        {chart ? (
+          <Text style={styles.small}>
+            {chart.workouts} {chart.workouts === 1 ? "workout" : "workouts"} ·{" "}
+            {chart.minutes} min
+          </Text>
+        ) : null}
+      </View>
+      <Text style={styles.small}>Minutes</Text>
+      {chart ? (
+        <WeekBars
+          bars={chart.bars}
+          height={64}
+          ticks={[String(chart.top), String(chart.top / 2), "0"]}
+          accessibilityLabel="Minutes worked out each day this week"
+        />
+      ) : state.kind === "error" ? (
+        <Text style={styles.error}>{state.message}</Text>
+      ) : (
+        <ActivityIndicator />
+      )}
+    </View>
+  );
+}
+
+function intensityText(workout: Workout): string {
+  const how = workout.calories_typed ? "" : "about ";
+  return `${workout.minutes} min · ${workout.intensity} · ${how}${Math.round(workout.calories)} kcal`;
+}
+
+/** Workout: this week at a glance, add a workout on two wheels, and what was done today. */
+export function WorkoutScreen({
+  date,
+  reloadKey,
+  onCalendar,
+  onChanged,
+}: Props) {
   const insets = useSafeAreaInsets();
+  const { state, removeWorkout } = useDay(reloadKey, date);
+  const day = state.kind === "ready" ? state.day : null;
   const [choices, setChoices] = useState<Activities | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activity, setActivity] = useState<string>("");
@@ -88,13 +171,14 @@ export function WorkoutScreen({ date = null, onAdded, onBack }: Props) {
         ...(typed !== null ? { calories: typed } : {}),
         ...(date ? { loggedOn: date } : {}),
       });
-      onAdded();
+      setCalories("");
+      onChanged();
     } catch (error) {
       setProblem(
         error instanceof ApiError ? error.message : "Could not add that.",
       );
-      setAdding(false);
     }
+    setAdding(false);
   }
 
   return (
@@ -104,121 +188,251 @@ export function WorkoutScreen({ date = null, onAdded, onBack }: Props) {
       automaticallyAdjustKeyboardInsets
       contentContainerStyle={[
         styles.content,
-        { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 },
+        { paddingTop: insets.top + 12, paddingBottom: 24 },
       ]}
     >
-      <Button title="Back" onPress={onBack} secondary />
-      <Text style={styles.title} accessibilityRole="header">
-        Add a workout
-      </Text>
+      <ScreenHeader
+        title="Workout"
+        subtitle={day ? shortDate(day.date) : undefined}
+        onCalendar={onCalendar}
+      />
 
-      {loadError ? (
-        <View>
-          <Text style={styles.error} accessibilityRole="alert">
-            {loadError}
-          </Text>
-          <Button
-            title="Try again"
-            onPress={() => {
-              setLoadError(null);
-              setAttempt((n) => n + 1);
-            }}
-            secondary
-          />
-        </View>
-      ) : null}
-      {!choices && !loadError ? <ActivityIndicator /> : null}
+      {day ? <WeekCard reloadKey={reloadKey} day={day.date} /> : null}
 
-      {choices ? (
-        <>
-          <FormGroup label="What did you do, and for how long?">
-            <View style={styles.wheels}>
-              <Picker
-                style={styles.activity}
-                accessibilityLabel="Activity"
-                selectedValue={activity}
-                onValueChange={(value: string) => setActivity(value)}
-              >
-                {choices.activities.map((item) => (
-                  <Picker.Item
-                    key={item.key}
-                    label={item.label}
-                    value={item.key}
-                  />
-                ))}
-              </Picker>
-              <Picker
-                style={styles.minutes}
-                accessibilityLabel="Minutes"
-                selectedValue={minutes}
-                onValueChange={(value: number) => setMinutes(value)}
-              >
-                {minuteOptions(choices.max_minutes).map((value) => (
-                  <Picker.Item
-                    key={value}
-                    label={`${value} min`}
-                    value={value}
-                  />
-                ))}
-              </Picker>
-            </View>
-          </FormGroup>
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Add a workout</Text>
 
-          <FormGroup label="How hard was it?">
-            <ChoiceGroup
-              label="Intensity"
-              choices={INTENSITIES}
-              value={intensity}
-              onChange={setIntensity}
-            />
-          </FormGroup>
-
-          <FormGroup
-            label="Calories from your watch (optional)"
-            help="Leave empty and the app estimates from your weight, the activity, the time and how hard it was."
-            error={
-              caloriesBad
-                ? "Enter a number above 0, or leave empty."
-                : undefined
-            }
-          >
-            <Input
-              value={calories}
-              onChangeText={setCalories}
-              keyboardType="decimal-pad"
-              accessibilityLabel="Calories burned"
-              hasError={caloriesBad}
-            />
-          </FormGroup>
-
-          {problem ? (
+        {loadError ? (
+          <View>
             <Text style={styles.error} accessibilityRole="alert">
-              {problem}
+              {loadError}
             </Text>
-          ) : null}
-          <Button
-            title={date ? `Add to ${shortDate(date)}` : "Add to today"}
-            onPress={() => void add()}
-            disabled={adding || caloriesBad || activity === ""}
-          />
-        </>
+            <Button
+              title="Try again"
+              onPress={() => {
+                setLoadError(null);
+                setAttempt((n) => n + 1);
+              }}
+              secondary
+            />
+          </View>
+        ) : null}
+        {!choices && !loadError ? <ActivityIndicator /> : null}
+
+        {choices ? (
+          <>
+            <View style={styles.wheels}>
+              <View style={styles.activity}>
+                <Picker
+                  accessibilityLabel="Activity"
+                  itemStyle={pickerItem}
+                  style={styles.wheel}
+                  selectedValue={activity}
+                  onValueChange={(value: string) => setActivity(value)}
+                >
+                  {choices.activities.map((item) => (
+                    <Picker.Item
+                      key={item.key}
+                      label={item.label}
+                      value={item.key}
+                    />
+                  ))}
+                </Picker>
+                <View pointerEvents="none" style={styles.band} />
+              </View>
+              <View style={styles.minutes}>
+                <Picker
+                  accessibilityLabel="Minutes"
+                  itemStyle={pickerItem}
+                  style={styles.wheel}
+                  selectedValue={minutes}
+                  onValueChange={(value: number) => setMinutes(value)}
+                >
+                  {minuteOptions(choices.max_minutes).map((value) => (
+                    <Picker.Item
+                      key={value}
+                      label={`${value} min`}
+                      value={value}
+                    />
+                  ))}
+                </Picker>
+                <View pointerEvents="none" style={styles.band} />
+              </View>
+            </View>
+
+            <View
+              accessibilityRole="radiogroup"
+              accessibilityLabel="Intensity"
+              style={styles.levels}
+            >
+              {INTENSITIES.map((level) => {
+                const on = level.value === intensity;
+                return (
+                  <Pressable
+                    key={level.value}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: on }}
+                    accessibilityLabel={level.label}
+                    accessibilityHint={level.hint}
+                    onPress={() => setIntensity(level.value)}
+                    style={[styles.level, on && styles.levelOn]}
+                  >
+                    <Text style={[styles.levelName, on && styles.levelNameOn]}>
+                      {level.label}
+                    </Text>
+                    <Text
+                      style={[styles.levelHint, on && styles.levelNameOn]}
+                      numberOfLines={2}
+                    >
+                      {level.hint}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <FormGroup
+              label="Calories burned (if known)"
+              error={
+                caloriesBad
+                  ? "Enter a number above 0, or leave empty."
+                  : undefined
+              }
+            >
+              <Input
+                value={calories}
+                onChangeText={setCalories}
+                placeholder="(optional)"
+                keyboardType="decimal-pad"
+                accessibilityLabel="Calories burned"
+                hasError={caloriesBad}
+              />
+            </FormGroup>
+
+            {problem ? (
+              <Text style={styles.error} accessibilityRole="alert">
+                {problem}
+              </Text>
+            ) : null}
+            <Button
+              title={date ? `Add to ${shortDate(date)}` : "Add to today"}
+              onPress={() => void add()}
+              disabled={adding || caloriesBad || activity === ""}
+            />
+          </>
+        ) : null}
+      </View>
+
+      {day ? (
+        day.workouts.length === 0 ? (
+          <Text style={styles.none}>No workouts logged for this day yet.</Text>
+        ) : (
+          day.workouts.map((workout) => (
+            <View key={workout.id} style={[styles.card, styles.logged]}>
+              <View style={styles.loggedText}>
+                <Text style={styles.cardTitle}>{workout.label}</Text>
+                <Text style={styles.small}>{intensityText(workout)}</Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${workout.label}`}
+                onPress={() => {
+                  void removeWorkout(workout.id).then(onChanged);
+                }}
+                style={styles.remove}
+              >
+                <Text style={styles.removeText}>Remove</Text>
+              </Pressable>
+            </View>
+          ))
+        )
       ) : null}
     </ScrollView>
   );
 }
 
+const WHEEL_HEIGHT = 132;
+const BAND_HEIGHT = 38;
+
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#ffffff" },
+  screen: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 20 },
-  title: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#111111",
-    marginTop: 16,
-    marginBottom: 8,
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: 22,
+    padding: 18,
+    marginBottom: 14,
   },
-  wheels: { flexDirection: "row" },
-  activity: { flex: 5 },
-  minutes: { flex: 3 },
-  error: { fontSize: 15, color: "#b00020", marginBottom: 8 },
+  cardHead: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+    marginBottom: 6,
+  },
+  cardTitle: { fontSize: 19, fontWeight: "600", color: colors.text },
+  small: { fontSize: 13, color: colors.muted },
+  error: { fontSize: 15, color: colors.danger, marginBottom: 8 },
+  wheels: {
+    flexDirection: "row",
+    backgroundColor: colors.bg,
+    borderRadius: 16,
+    marginVertical: 12,
+    paddingHorizontal: 8,
+  },
+  activity: { flex: 5, marginRight: 8, justifyContent: "center" },
+  minutes: { flex: 3, justifyContent: "center" },
+  wheel: { height: WHEEL_HEIGHT },
+  band: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: (WHEEL_HEIGHT - BAND_HEIGHT) / 2,
+    height: BAND_HEIGHT,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: colors.bar,
+  },
+  levels: { flexDirection: "row", marginBottom: 18 },
+  level: {
+    flex: 1,
+    minHeight: 66,
+    marginHorizontal: 3,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 3,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  levelOn: { borderWidth: 1.5, borderColor: colors.bar },
+  levelName: { fontSize: 14, fontWeight: "600", color: colors.muted },
+  levelHint: {
+    fontSize: 11,
+    lineHeight: 14,
+    color: colors.muted,
+    textAlign: "center",
+    marginTop: 3,
+  },
+  levelNameOn: { color: colors.text },
+  none: {
+    fontSize: 14,
+    color: colors.muted,
+    textAlign: "center",
+    marginVertical: 8,
+  },
+  logged: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  loggedText: { flex: 1, paddingRight: 8 },
+  remove: {
+    minHeight: 34,
+    paddingHorizontal: 14,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    justifyContent: "center",
+  },
+  removeText: { fontSize: 13, fontWeight: "600", color: colors.accent },
 });
