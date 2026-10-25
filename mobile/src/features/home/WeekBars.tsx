@@ -106,7 +106,7 @@ export function WeekBars({
                 key={i}
                 style={styles.column}
                 accessibilityRole="button"
-                accessibilityLabel={`Open ${bar.label.replace("\n", " ")}`}
+                accessibilityLabel={`Open ${bar.label.replace(/\n/g, " ")}`}
                 onPress={() => onPick(i)}
               />
             ) : (
