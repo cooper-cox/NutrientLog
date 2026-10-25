@@ -56,20 +56,7 @@ export function WeekBars({
           ) : null}
           <View style={styles.bars}>
             {bars.map((bar, i) => (
-              <Pressable
-                key={i}
-                style={styles.slot}
-                disabled={!onPick || !bar.pickable}
-                accessibilityRole={
-                  onPick && bar.pickable ? "button" : undefined
-                }
-                accessibilityLabel={
-                  onPick && bar.pickable
-                    ? `Open ${bar.label.replace("\n", " ")}`
-                    : undefined
-                }
-                onPress={() => onPick?.(i)}
-              >
+              <View key={i} style={styles.slot}>
                 <View
                   style={[
                     styles.bar,
@@ -86,7 +73,7 @@ export function WeekBars({
                         : styles.barOn,
                   ]}
                 />
-              </Pressable>
+              </View>
             ))}
           </View>
         </View>
@@ -108,11 +95,42 @@ export function WeekBars({
           ))}
         </View>
       </View>
+      {onPick ? (
+        <View
+          style={[styles.overlay, { left: ticks ? TICK_SPACE : 0 }]}
+          pointerEvents="box-none"
+        >
+          {bars.map((bar, i) =>
+            bar.pickable ? (
+              <Pressable
+                key={i}
+                style={styles.column}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${bar.label.replace("\n", " ")}`}
+                onPress={() => onPick(i)}
+              />
+            ) : (
+              <View key={i} style={styles.column} pointerEvents="none" />
+            ),
+          )}
+        </View>
+      ) : null}
     </View>
   );
 }
 
+/** Room taken by the y-axis numbers (width 26 plus margin 8), so the tap columns line up. */
+const TICK_SPACE = 34;
+
 const styles = StyleSheet.create({
+  overlay: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    right: 0,
+    flexDirection: "row",
+  },
+  column: { flex: 1 },
   plotRow: { flexDirection: "row" },
   ticks: { width: 26, justifyContent: "space-between", marginRight: 8 },
   tick: { fontSize: 11, color: colors.muted, textAlign: "right" },

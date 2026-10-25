@@ -48,3 +48,4 @@ live in the Design artifact "NutrientLog Look Options"; the colours and sizes li
 - Tapping a bar in the Home or Workout chart opens that day.
 - Logged workouts can be edited (activity, minutes, intensity, calories) as well as removed.
 - The "Back to today" button uses a drawn arrow, never an emoji. Developer-only buttons (Check connection, Start over) appear only in development builds.
+- Bar charts (Home and Workout) are fixed Sunday to Saturday weeks; the whole day column, label included, opens that day, so forgotten days are as easy to open as logged ones.

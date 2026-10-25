@@ -54,12 +54,12 @@ const mockDay = jest.mocked(getDay);
 const mockWeek = jest.mocked(getWeek);
 
 const WEEK: Week = {
-  end: "2026-10-18",
-  days: [12, 13, 14, 15, 16, 17, 18].map((d, i) => ({
+  end: "2026-10-24",
+  days: [18, 19, 20, 21, 22, 23, 24].map((d, i) => ({
     date: `2026-10-${d}`,
-    calories: i === 6 ? 2500 : i === 5 ? 3100 : 0,
+    calories: i === 0 ? 2500 : 0,
     protein_g: 0,
-    entries: i >= 5 ? 2 : 0,
+    entries: i === 0 ? 2 : 0,
     workouts: [],
     workout_minutes: 0,
   })),
@@ -77,10 +77,12 @@ function Home({
   reloadKey = 0,
   date = null,
   onCalendar = jest.fn(),
+  onPickDay,
 }: {
   reloadKey?: number;
   date?: string | null;
   onCalendar?: () => void;
+  onPickDay?: (date: string | null) => void;
 }) {
   return (
     <SafeAreaProvider initialMetrics={PHONE}>
@@ -89,6 +91,7 @@ function Home({
         reloadKey={reloadKey}
         date={date}
         onCalendar={onCalendar}
+        onPickDay={onPickDay}
       />
     </SafeAreaProvider>
   );
@@ -107,14 +110,32 @@ describe("HomeScreen", () => {
     expect(screen.getByText("Macros today")).toBeTruthy();
   });
 
-  it("shows the last seven days with the average", async () => {
+  it("shows this week, Sunday to Saturday, with the average", async () => {
     render(<Home />);
     await screen.findByLabelText("2929 calories left");
-    expect(screen.getByText("Last 7 days")).toBeTruthy();
+    expect(screen.getByText("This week")).toBeTruthy();
     expect(await screen.findByText("avg 2800 kcal")).toBeTruthy();
     expect(
-      screen.getByLabelText(/Calories eaten in the last seven days/),
+      screen.getByLabelText(/Calories eaten each day this week/),
     ).toBeTruthy();
+  });
+
+  it("keeps the week fixed and only asks for it once the day is known", async () => {
+    render(<Home />);
+    await screen.findByLabelText("2929 calories left");
+    expect(mockWeek).toHaveBeenLastCalledWith("2026-10-24");
+    expect(screen.getByText("Sun\n10/18")).toBeTruthy();
+    expect(screen.getByText("Sat\n10/24")).toBeTruthy();
+  });
+
+  it("taps a day with no bar, by its label", async () => {
+    const onPickDay = jest.fn();
+    render(<Home onPickDay={onPickDay} />);
+    await screen.findByLabelText("2929 calories left");
+    expect(screen.queryByLabelText("Open Sat 10/24")).toBeNull();
+    await screen.findByText("avg 2800 kcal");
+    fireEvent.press(screen.getByLabelText("Open Sun 10/18"));
+    expect(onPickDay).toHaveBeenCalledWith(null);
   });
 
   it("shows how far over the target someone is", async () => {

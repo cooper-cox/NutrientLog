@@ -14,7 +14,14 @@ import { ScreenHeader } from "../../ui/ScreenHeader";
 import { colors, type } from "../../ui/theme";
 import { kcalText } from "../food/amounts";
 import { DayBurn } from "./DayBurn";
-import { dayLabel, shortDate, weekdayShort } from "./dates";
+import {
+  dayLabel,
+  monthDay,
+  shiftDate,
+  shortDate,
+  weekdayShort,
+  weekStart,
+} from "./dates";
 import { useDay } from "./useDay";
 import { useWeek } from "./useWeek";
 import { WeekBars } from "./WeekBars";
@@ -91,18 +98,19 @@ function Macro({
   );
 }
 
+/** The bars for one fixed Sunday-to-Saturday week; days after the real today are left empty. */
 function weekBars(
   week: Week,
   goal: number | null,
-  selected: string,
+  viewed: string,
   today: string,
 ) {
   const top = Math.max(goal ?? 0, ...week.days.map((day) => day.calories), 1);
   return {
     bars: week.days.map((day) => ({
-      label: weekdayShort(day.date).slice(0, 1),
-      fraction: day.calories / top,
-      today: day.date === selected,
+      label: `${weekdayShort(day.date)}\n${monthDay(day.date)}`,
+      fraction: day.date > today ? null : day.calories / top,
+      today: day.date === viewed,
       pickable: day.date <= today,
     })),
     target: goal !== null ? goal / top : null,
@@ -120,8 +128,11 @@ export function HomeScreen({
 }: Props) {
   const insets = useSafeAreaInsets();
   const { state, reload } = useDay(reloadKey, date);
-  const weekState = useWeek(reloadKey, date);
   const day = state.kind === "ready" ? state.day : null;
+  // The chart is the fixed Sunday-to-Saturday week around the open day, so tapping a bar in it
+  // moves the highlight without moving the week.
+  const weekEnd = day ? shiftDate(weekStart(day.date), 6) : null;
+  const weekState = useWeek(reloadKey, weekEnd);
   const shown = day?.date ?? date;
   const isToday = date === null || (day !== null && day.date === day.today);
   const title = day
@@ -187,7 +198,7 @@ export function HomeScreen({
 
           <View style={styles.card}>
             <View style={styles.cardHead}>
-              <Text style={styles.cardTitle}>Last 7 days</Text>
+              <Text style={styles.cardTitle}>This week</Text>
               {weekState.state.kind === "ready" &&
               weekState.state.week.average_calories !== null ? (
                 <Text style={styles.small}>
@@ -195,14 +206,16 @@ export function HomeScreen({
                 </Text>
               ) : null}
             </View>
-            {weekState.state.kind === "ready" ? (
+            {weekState.state.kind === "ready" &&
+            weekState.state.week.end === weekEnd &&
+            day ? (
               (() => {
                 const week = weekState.state.week;
-                const realToday = day?.today ?? week.end;
+                const realToday = day.today;
                 const { bars, target } = weekBars(
                   week,
                   week.goal_calories,
-                  week.end,
+                  day.date,
                   realToday,
                 );
                 return (
@@ -213,7 +226,7 @@ export function HomeScreen({
                       const picked = week.days[i].date;
                       onPickDay?.(picked === realToday ? null : picked);
                     }}
-                    accessibilityLabel="Calories eaten in the last seven days, with the target as a dashed line"
+                    accessibilityLabel="Calories eaten each day this week, with the target as a dashed line"
                   />
                 );
               })()

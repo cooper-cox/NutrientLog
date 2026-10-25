@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, screen } from "@testing-library/react-native";
+import { Alert } from "react-native";
 
 import App from "./App";
 import { ApiError } from "./src/api/client";
@@ -18,7 +19,7 @@ import {
   type Week,
 } from "./src/api/food";
 import { getActivities } from "./src/api/workouts";
-import { getStoredToken } from "./src/storage/token";
+import { clearStoredToken, getStoredToken } from "./src/storage/token";
 
 jest.mock(
   "react-native-safe-area-context",
@@ -231,6 +232,25 @@ describe("App", () => {
     ).toBe("80");
     fireEvent.press(screen.getByRole("button", { name: "Cancel" }));
     expect(await screen.findByText("Your goal")).toBeTruthy();
+  });
+
+  it("Start over forgets the login and shows the survey again", async () => {
+    ready();
+    jest.mocked(clearStoredToken).mockResolvedValue(undefined);
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    render(<App />);
+    await screen.findByLabelText("3034 calories left");
+    fireEvent.press(screen.getByRole("tab", { name: "Profile" }));
+    fireEvent.press(
+      await screen.findByRole("button", { name: "Start over (testing)" }),
+    );
+    const buttons = alert.mock.calls[0][2] ?? [];
+    await act(async () => {
+      buttons.find((b) => b.text === "Start over")?.onPress?.();
+    });
+    expect(clearStoredToken).toHaveBeenCalled();
+    expect(await screen.findByText("Let’s set your targets")).toBeTruthy();
+    alert.mockRestore();
   });
 
   it("explains a connection problem and offers to try again", async () => {
