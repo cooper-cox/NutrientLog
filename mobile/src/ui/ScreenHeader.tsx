@@ -2,6 +2,16 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { colors, type } from "./theme";
 
+/** A plain back arrow drawn from shapes, so no font or emoji can change how it looks. */
+function BackArrow() {
+  return (
+    <View style={styles.arrow} accessibilityElementsHidden>
+      <View style={styles.arrowLine} />
+      <View style={styles.arrowHead} />
+    </View>
+  );
+}
+
 /** A small date line, the big title, and (optionally) the Calendar button on the right. */
 export function ScreenHeader({
   title,
@@ -49,7 +59,8 @@ export function ScreenHeader({
           onPress={onToday}
           style={styles.today}
         >
-          <Text style={styles.todayText}>↩ Back to today</Text>
+          <BackArrow />
+          <Text style={styles.todayText}>Back to today</Text>
         </Pressable>
       ) : null}
     </>
@@ -76,7 +87,27 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.accent,
-    justifyContent: "center",
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  arrow: { width: 16, height: 14, marginRight: 8, justifyContent: "center" },
+  arrowLine: {
+    position: "absolute",
+    left: 1,
+    width: 14,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: colors.accent,
+  },
+  arrowHead: {
+    position: "absolute",
+    left: 1,
+    width: 9,
+    height: 9,
+    borderLeftWidth: 2,
+    borderBottomWidth: 2,
+    borderColor: colors.accent,
+    transform: [{ rotate: "45deg" }],
   },
   todayText: { fontSize: 14, fontWeight: "600", color: colors.accent },
   title: {

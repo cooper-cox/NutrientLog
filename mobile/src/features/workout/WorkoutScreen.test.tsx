@@ -3,7 +3,12 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ApiError } from "../../api/client";
 import { getDay, getWeek, type Day, type Week } from "../../api/food";
-import { addWorkout, deleteWorkout, getActivities } from "../../api/workouts";
+import {
+  addWorkout,
+  changeWorkout,
+  deleteWorkout,
+  getActivities,
+} from "../../api/workouts";
 import { minuteOptions, weekChart, WorkoutScreen } from "./WorkoutScreen";
 
 jest.mock("../../api/food");
@@ -54,6 +59,7 @@ const WEEK: Week = {
 
 const mockActivities = jest.mocked(getActivities);
 const mockAdd = jest.mocked(addWorkout);
+const mockChange = jest.mocked(changeWorkout);
 const mockDay = jest.mocked(getDay);
 const mockWeek = jest.mocked(getWeek);
 
@@ -79,6 +85,7 @@ beforeEach(() => {
 });
 
 function renderScreen(date: string | null = null) {
+  const onPickDay = jest.fn();
   const onCalendar = jest.fn();
   const onChanged = jest.fn();
   const onToday = jest.fn();
@@ -89,11 +96,12 @@ function renderScreen(date: string | null = null) {
         reloadKey={0}
         onCalendar={onCalendar}
         onToday={onToday}
+        onPickDay={onPickDay}
         onChanged={onChanged}
       />
     </SafeAreaProvider>,
   );
-  return { onCalendar, onChanged, onToday };
+  return { onCalendar, onChanged, onToday, onPickDay };
 }
 
 describe("minuteOptions", () => {
@@ -131,9 +139,25 @@ describe("weekChart", () => {
       label: "Tue\n10/20",
       fraction: 0.75,
       today: true,
+      pickable: true,
     });
     // Days that have not happened yet have no bar at all.
     expect(chart.bars[3].fraction).toBeNull();
+  });
+
+  it("only greys out days after the real today, even when an earlier day is open", () => {
+    // Viewing Monday 10/19 while today is Friday 10/23: Tue to Fri still show their bars.
+    const week = {
+      ...WEEK,
+      days: WEEK.days.map((d) => ({ ...d, workout_minutes: 30 })),
+    };
+    const chart = weekChart(week, "2026-10-19", "2026-10-23");
+    expect(chart.bars[1].today).toBe(true); // Monday is the orange one
+    expect(chart.bars[2].fraction).toBe(0.5); // Tuesday is past, so it keeps its bar
+    expect(chart.bars[5].fraction).toBe(0.5); // Friday is today
+    expect(chart.bars[6].fraction).toBeNull(); // Saturday is in the future
+    expect(chart.bars[5].pickable).toBe(true);
+    expect(chart.bars[6].pickable).toBe(false);
   });
 
   it("makes the chart taller in steps of 30 minutes when a day is longer than an hour", () => {
@@ -185,6 +209,46 @@ describe("WorkoutScreen", () => {
     const { onToday } = renderScreen("2026-10-19");
     fireEvent.press(await screen.findByLabelText("Back to today"));
     expect(onToday).toHaveBeenCalled();
+  });
+
+  it("opens a day when its bar is tapped, and today as null", async () => {
+    const { onPickDay } = renderScreen();
+    fireEvent.press(await screen.findByLabelText("Open Mon 10/19"));
+    expect(onPickDay).toHaveBeenLastCalledWith("2026-10-19");
+    fireEvent.press(screen.getByLabelText("Open Tue 10/20"));
+    expect(onPickDay).toHaveBeenLastCalledWith(null);
+    // Days after today cannot be opened.
+    expect(screen.queryByLabelText("Open Wed 10/21")).toBeNull();
+  });
+
+  it("changes a logged workout: Edit fills the form, Save sends the changes", async () => {
+    mockDay.mockResolvedValue({ ...DAY, workouts: [WORKOUT] });
+    mockChange.mockResolvedValue({ ...WORKOUT, minutes: 45 });
+    const { onChanged } = renderScreen();
+    fireEvent.press(await screen.findByLabelText("Edit Weight training"));
+    expect(screen.getByText("Edit Weight training")).toBeTruthy();
+    fireEvent.changeText(screen.getByLabelText("Calories burned"), "300");
+    fireEvent.press(screen.getByLabelText("Save changes"));
+    await act(async () => {});
+    expect(mockChange).toHaveBeenCalledWith("w1", {
+      activity: "weights",
+      minutes: 45,
+      intensity: "hard",
+      calories: 300,
+    });
+    expect(mockAdd).not.toHaveBeenCalled();
+    expect(onChanged).toHaveBeenCalled();
+    // The form goes back to adding.
+    expect(screen.getByText("Add a workout")).toBeTruthy();
+  });
+
+  it("can cancel an edit without saving", async () => {
+    mockDay.mockResolvedValue({ ...DAY, workouts: [WORKOUT] });
+    renderScreen();
+    fireEvent.press(await screen.findByLabelText("Edit Weight training"));
+    fireEvent.press(screen.getByLabelText("Cancel"));
+    expect(mockChange).not.toHaveBeenCalled();
+    expect(screen.getByText("Add a workout")).toBeTruthy();
   });
 
   it("opens the calendar from the header", async () => {

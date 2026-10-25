@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { colors } from "../../ui/theme";
 
@@ -9,6 +9,8 @@ export type Bar = {
   fraction: number | null;
   /** The highlighted (today) bar is orange. */
   today?: boolean;
+  /** Tapping this bar (or its label) can open that day. Leave out for days that cannot. */
+  pickable?: boolean;
 };
 
 /** A row of bars with a label under each, an optional dashed target line, and an optional y axis. */
@@ -17,6 +19,7 @@ export function WeekBars({
   height = 96,
   target = null,
   ticks,
+  onPick,
   accessibilityLabel,
 }: {
   bars: Bar[];
@@ -25,12 +28,14 @@ export function WeekBars({
   target?: number | null;
   /** Labels down the left, top to bottom (e.g. ["60", "30", "0"]). */
   ticks?: string[];
+  /** Called with the bar number when a pickable bar or its label is tapped. */
+  onPick?: (index: number) => void;
   accessibilityLabel: string;
 }) {
   return (
     <View
-      accessible
-      accessibilityRole="image"
+      accessible={!onPick}
+      accessibilityRole={onPick ? undefined : "image"}
       accessibilityLabel={accessibilityLabel}
     >
       <View style={styles.plotRow}>
@@ -51,7 +56,20 @@ export function WeekBars({
           ) : null}
           <View style={styles.bars}>
             {bars.map((bar, i) => (
-              <View key={i} style={styles.slot}>
+              <Pressable
+                key={i}
+                style={styles.slot}
+                disabled={!onPick || !bar.pickable}
+                accessibilityRole={
+                  onPick && bar.pickable ? "button" : undefined
+                }
+                accessibilityLabel={
+                  onPick && bar.pickable
+                    ? `Open ${bar.label.replace("\n", " ")}`
+                    : undefined
+                }
+                onPress={() => onPick?.(i)}
+              >
                 <View
                   style={[
                     styles.bar,
@@ -68,7 +86,7 @@ export function WeekBars({
                         : styles.barOn,
                   ]}
                 />
-              </View>
+              </Pressable>
             ))}
           </View>
         </View>

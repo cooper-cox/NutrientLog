@@ -54,7 +54,8 @@ def _factor(intensity: str) -> float:
     }[intensity]
 
 
-def add_workout(session: Session, user: User, data: WorkoutIn, today: date) -> Workout:
+def _checked(user: User, data: WorkoutIn, logged_on: date, today: date) -> tuple[str, float, bool]:
+    """Check a workout and work out its calories. Returns (activity key, calories, typed)."""
     config = settings.workouts
     problems: list[Problem] = []
     activity = next((a for a in config.activities if a.key == data.activity), None)
@@ -68,7 +69,6 @@ def add_workout(session: Session, user: User, data: WorkoutIn, today: date) -> W
         problems.append(
             Problem("calories", f"That is more than {config.max_calories:.0f} calories.")
         )
-    logged_on = data.logged_on or today
     if abs((logged_on - today).days) > 366:
         problems.append(Problem("logged_on", "That date is too far from today."))
     if data.calories is None and not user.weight_kg and activity is not None:
@@ -79,22 +79,48 @@ def add_workout(session: Session, user: User, data: WorkoutIn, today: date) -> W
         raise InvalidInputError(problems)
     assert activity is not None  # for the type checker; problems above cover None
     if data.calories is not None:
-        calories, typed = data.calories, True
-    else:
-        weight = user.weight_kg or 0.0
-        calories = workout_calories(activity.met, weight, data.minutes, _factor(data.intensity))
-        typed = False
+        return activity.key, round(data.calories, 1), True
+    weight = user.weight_kg or 0.0
+    calories = workout_calories(activity.met, weight, data.minutes, _factor(data.intensity))
+    return activity.key, round(calories, 1), False
+
+
+def add_workout(session: Session, user: User, data: WorkoutIn, today: date) -> Workout:
+    logged_on = data.logged_on or today
+    activity, calories, typed = _checked(user, data, logged_on, today)
     workout = Workout(
         id=uuid.uuid4(),
         user_id=user.id,
         logged_on=logged_on,
-        activity=activity.key,
+        activity=activity,
         minutes=data.minutes,
         intensity=data.intensity,
-        calories=round(calories, 1),
+        calories=calories,
         calories_typed=typed,
     )
     session.add(workout)
+    session.commit()
+    session.refresh(workout)
+    return workout
+
+
+def change_workout(
+    session: Session, user: User, workout_id: uuid.UUID, data: WorkoutIn, today: date
+) -> Workout | None:
+    """Replace a workout's activity, minutes, intensity and calories. Its day stays unless sent."""
+    workout = session.scalar(
+        select(Workout).where(Workout.id == workout_id, Workout.user_id == user.id)
+    )
+    if workout is None:
+        return None
+    logged_on = data.logged_on or workout.logged_on
+    activity, calories, typed = _checked(user, data, logged_on, today)
+    workout.logged_on = logged_on
+    workout.activity = activity
+    workout.minutes = data.minutes
+    workout.intensity = data.intensity
+    workout.calories = calories
+    workout.calories_typed = typed
     session.commit()
     session.refresh(workout)
     return workout

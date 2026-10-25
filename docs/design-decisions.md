@@ -42,3 +42,9 @@ live in the Design artifact "NutrientLog Look Options"; the colours and sizes li
 ## Later: polish and other ideas
 - Colour-coded workouts by intensity or duration on the calendar; Strava / workout-app linking
   (deferred, not a priority); DM Sans (L50); per-nutrient targets (L51).
+
+## Added after the first phone tests
+- A one-time Welcome screen after the survey: the target, macros and why, then "Start tracking".
+- Tapping a bar in the Home or Workout chart opens that day.
+- Logged workouts can be edited (activity, minutes, intensity, calories) as well as removed.
+- The "Back to today" button uses a drawn arrow, never an emoji. Developer-only buttons (Check connection, Start over) appear only in development builds.

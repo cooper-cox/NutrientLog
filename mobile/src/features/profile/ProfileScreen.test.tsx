@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import type { Goal, Profile } from "../../api/endpoints";
+import { Alert } from "react-native";
+
 import { ageOn, ProfileScreen } from "./ProfileScreen";
 
 const PHONE = {
@@ -40,7 +42,11 @@ const GOAL: Goal = {
   weeks_to_goal: 20,
 };
 
-function renderProfile(profile: Profile = PROFILE, goal: Goal = GOAL) {
+function renderProfile(
+  profile: Profile = PROFILE,
+  goal: Goal = GOAL,
+  onStartOver?: () => void,
+) {
   const onChangeAnswers = jest.fn();
   const onCheckConnection = jest.fn();
   render(
@@ -50,6 +56,7 @@ function renderProfile(profile: Profile = PROFILE, goal: Goal = GOAL) {
         goal={goal}
         onChangeAnswers={onChangeAnswers}
         onCheckConnection={onCheckConnection}
+        onStartOver={onStartOver}
       />
     </SafeAreaProvider>,
   );
@@ -66,6 +73,37 @@ describe("ageOn", () => {
 });
 
 describe("ProfileScreen", () => {
+  it("has no Check connection button in the released app (no handler given)", () => {
+    render(
+      <SafeAreaProvider initialMetrics={PHONE}>
+        <ProfileScreen
+          profile={PROFILE}
+          goal={GOAL}
+          onChangeAnswers={jest.fn()}
+        />
+      </SafeAreaProvider>,
+    );
+    expect(screen.queryByLabelText("Check connection")).toBeNull();
+    expect(screen.getByLabelText("Edit my answers")).toBeTruthy();
+  });
+
+  it("has no Start over button unless the app is in testing mode", () => {
+    renderProfile();
+    expect(screen.queryByLabelText("Start over (testing)")).toBeNull();
+  });
+
+  it("asks before starting over, then calls onStartOver", () => {
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    const onStartOver = jest.fn();
+    renderProfile(PROFILE, GOAL, onStartOver);
+    fireEvent.press(screen.getByLabelText("Start over (testing)"));
+    expect(onStartOver).not.toHaveBeenCalled();
+    const buttons = alert.mock.calls[0][2] ?? [];
+    buttons.find((b) => b.text === "Start over")?.onPress?.();
+    expect(onStartOver).toHaveBeenCalledTimes(1);
+    alert.mockRestore();
+  });
+
   it("shows the calorie goal, what it is for and the macros on one line", () => {
     renderProfile();
     expect(screen.getByText("Profile")).toBeTruthy();

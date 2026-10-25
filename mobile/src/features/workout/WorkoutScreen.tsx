@@ -1,5 +1,5 @@
 import { Picker } from "@react-native-picker/picker";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -14,6 +14,7 @@ import { ApiError } from "../../api/client";
 import type { Week } from "../../api/food";
 import {
   addWorkout,
+  changeWorkout,
   getActivities,
   type Activities,
   type Workout,
@@ -38,6 +39,8 @@ type Props = {
   date: string | null;
   /** Goes back to today (shown as a button while another day is open). */
   onToday?: () => void;
+  /** Opens a day tapped in the bar chart (null for today). */
+  onPickDay?: (date: string | null) => void;
   /** Changes after something is added or removed, so the week and the day reload. */
   reloadKey: number;
   onCalendar: () => void;
@@ -54,6 +57,13 @@ export function minuteOptions(max: number): number[] {
   return options;
 }
 
+/** The wheel's minutes, plus the current value when it is not a step (an edited 7-minute workout). */
+function minuteOptionsWith(max: number, current: number): number[] {
+  const options = minuteOptions(max);
+  if (options.includes(current)) return options;
+  return [...options, current].sort((a, b) => a - b);
+}
+
 /** Two short lines each, so they never run to a third. */
 const INTENSITIES = [
   { value: "light", label: "Light", hint: "Easy, you could chat" },
@@ -61,8 +71,8 @@ const INTENSITIES = [
   { value: "hard", label: "Hard", hint: "Heavy breathing, minimal breaks" },
 ];
 
-/** The bars for one Sunday-to-Saturday week: minutes a day, with the viewed day in orange. */
-export function weekChart(week: Week, today: string) {
+/** The bars for one Sunday-to-Saturday week: minutes a day, the viewed day in orange, and only days after the real today left empty. */
+export function weekChart(week: Week, viewed: string, today: string = viewed) {
   // `?? 0` so an older backend that does not send workout_minutes shows empty bars, not NaN.
   const mins = week.days.map((d) => d.workout_minutes ?? 0);
   const longest = Math.max(0, ...mins);
@@ -75,15 +85,28 @@ export function weekChart(week: Week, today: string) {
     minutes,
     bars: week.days.map((d, i) => ({
       label: `${weekdayShort(d.date)}\n${monthDay(d.date)}`,
+      // Only days after the real today are empty; days after the viewed day still show.
       fraction: d.date > today ? null : mins[i] / top,
-      today: d.date === today,
+      today: d.date === viewed,
+      pickable: d.date <= today,
     })),
   };
 }
 
-function WeekCard({ reloadKey, day }: { reloadKey: number; day: string }) {
+function WeekCard({
+  reloadKey,
+  day,
+  today,
+  onPick,
+}: {
+  reloadKey: number;
+  day: string;
+  today: string;
+  onPick?: (date: string | null) => void;
+}) {
   const { state } = useWeek(reloadKey, shiftDate(weekStart(day), 6));
-  const chart = state.kind === "ready" ? weekChart(state.week, day) : null;
+  const chart =
+    state.kind === "ready" ? weekChart(state.week, day, today) : null;
   return (
     <View style={styles.card}>
       <View style={styles.cardHead}>
@@ -101,6 +124,11 @@ function WeekCard({ reloadKey, day }: { reloadKey: number; day: string }) {
           bars={chart.bars}
           height={64}
           ticks={[String(chart.top), String(chart.top / 2), "0"]}
+          onPick={(i) => {
+            if (state.kind !== "ready") return;
+            const picked = state.week.days[i].date;
+            onPick?.(picked === today ? null : picked);
+          }}
           accessibilityLabel="Minutes worked out each day this week"
         />
       ) : state.kind === "error" ? (
@@ -123,6 +151,7 @@ export function WorkoutScreen({
   reloadKey,
   onCalendar,
   onToday,
+  onPickDay,
   onChanged,
 }: Props) {
   const insets = useSafeAreaInsets();
@@ -135,6 +164,9 @@ export function WorkoutScreen({
   const [intensity, setIntensity] = useState("moderate");
   const [calories, setCalories] = useState("");
   const [adding, setAdding] = useState(false);
+  // The workout being changed (the form is filled with it), or null when adding a new one.
+  const [editing, setEditing] = useState<Workout | null>(null);
+  const scroller = useRef<ScrollView>(null);
   const [problem, setProblem] = useState<string | null>(null);
 
   // Bumped by "Try again" to ask for the activities once more.
@@ -164,18 +196,39 @@ export function WorkoutScreen({
   const typed = parseNumber(calories);
   const caloriesBad = calories.trim() !== "" && (typed === null || typed <= 0);
 
+  function startEdit(workout: Workout) {
+    setEditing(workout);
+    setActivity(workout.activity);
+    setMinutes(workout.minutes);
+    setIntensity(workout.intensity);
+    setCalories(workout.calories_typed ? String(workout.calories) : "");
+    setProblem(null);
+    scroller.current?.scrollTo({ y: 0, animated: true });
+  }
+
+  function cancelEdit() {
+    setEditing(null);
+    setCalories("");
+    setProblem(null);
+  }
+
   async function add() {
     if (caloriesBad) return;
     setAdding(true);
     setProblem(null);
     try {
-      await addWorkout({
+      const body = {
         activity,
         minutes,
         intensity,
         ...(typed !== null ? { calories: typed } : {}),
-        ...(date ? { loggedOn: date } : {}),
-      });
+      };
+      if (editing) {
+        await changeWorkout(editing.id, body);
+        setEditing(null);
+      } else {
+        await addWorkout({ ...body, ...(date ? { loggedOn: date } : {}) });
+      }
       setCalories("");
       onChanged();
     } catch (error) {
@@ -188,6 +241,7 @@ export function WorkoutScreen({
 
   return (
     <ScrollView
+      ref={scroller}
       style={styles.screen}
       keyboardShouldPersistTaps="handled"
       automaticallyAdjustKeyboardInsets
@@ -204,10 +258,19 @@ export function WorkoutScreen({
         onToday={onToday}
       />
 
-      {day ? <WeekCard reloadKey={reloadKey} day={day.date} /> : null}
+      {day ? (
+        <WeekCard
+          reloadKey={reloadKey}
+          day={day.date}
+          today={day.today}
+          onPick={onPickDay}
+        />
+      ) : null}
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Add a workout</Text>
+        <Text style={styles.cardTitle}>
+          {editing ? `Edit ${editing.label}` : "Add a workout"}
+        </Text>
 
         {loadError ? (
           <View>
@@ -255,13 +318,15 @@ export function WorkoutScreen({
                   selectedValue={minutes}
                   onValueChange={(value: number) => setMinutes(value)}
                 >
-                  {minuteOptions(choices.max_minutes).map((value) => (
-                    <Picker.Item
-                      key={value}
-                      label={`${value} min`}
-                      value={value}
-                    />
-                  ))}
+                  {minuteOptionsWith(choices.max_minutes, minutes).map(
+                    (value) => (
+                      <Picker.Item
+                        key={value}
+                        label={`${value} min`}
+                        value={value}
+                      />
+                    ),
+                  )}
                 </Picker>
                 <View pointerEvents="none" style={styles.band} />
               </View>
@@ -322,10 +387,19 @@ export function WorkoutScreen({
               </Text>
             ) : null}
             <Button
-              title={date ? `Add to ${shortDate(date)}` : "Add to today"}
+              title={
+                editing
+                  ? "Save changes"
+                  : date
+                    ? `Add to ${shortDate(date)}`
+                    : "Add to today"
+              }
               onPress={() => void add()}
               disabled={adding || caloriesBad || activity === ""}
             />
+            {editing ? (
+              <Button title="Cancel" onPress={cancelEdit} secondary />
+            ) : null}
           </>
         ) : null}
       </View>
@@ -342,8 +416,17 @@ export function WorkoutScreen({
               </View>
               <Pressable
                 accessibilityRole="button"
+                accessibilityLabel={`Edit ${workout.label}`}
+                onPress={() => startEdit(workout)}
+                style={[styles.remove, styles.edit]}
+              >
+                <Text style={styles.editText}>Edit</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
                 accessibilityLabel={`Remove ${workout.label}`}
                 onPress={() => {
+                  if (editing?.id === workout.id) cancelEdit();
                   void removeWorkout(workout.id).then(onChanged);
                 }}
                 style={styles.remove}
@@ -453,5 +536,7 @@ const styles = StyleSheet.create({
     borderColor: colors.accent,
     justifyContent: "center",
   },
+  edit: { borderColor: colors.border, marginRight: 8 },
+  editText: { fontSize: 13, fontWeight: "600", color: colors.text },
   removeText: { fontSize: 13, fontWeight: "600", color: colors.accent },
 });

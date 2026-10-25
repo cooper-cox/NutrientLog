@@ -1,18 +1,29 @@
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { ActivityLevel, Goal, Profile } from "../../api/endpoints";
 import { cmToFtIn, formatRate, formatWeight } from "../../lib/units";
 import { DISCLAIMER } from "../../ui/components";
 import { ScreenHeader } from "../../ui/ScreenHeader";
+import { GoalExplanation } from "./GoalExplanation";
 import { colors } from "../../ui/theme";
 
 type Props = {
   profile: Profile;
   goal: Goal;
   onChangeAnswers: () => void;
-  onCheckConnection: () => void;
+  /** Only given in development (Expo Go); the released app has no such button. */
+  onCheckConnection?: () => void;
+  /** For testing only: forget this phone's login and start with a fresh survey. */
+  onStartOver?: () => void;
 };
 
 const ACTIVITY: Record<ActivityLevel, string> = {
@@ -28,11 +39,6 @@ const AIM = {
   lose: "Lose weight",
   maintain: "Maintain my weight",
 };
-
-function signed(value: number): string {
-  const rounded = Math.round(value);
-  return rounded > 0 ? `+${rounded}` : String(rounded);
-}
 
 /** Whole years between a birth date (YYYY-MM-DD) and `now`. */
 export function ageOn(birth: string, now: Date): number {
@@ -73,6 +79,7 @@ export function ProfileScreen({
   goal,
   onChangeAnswers,
   onCheckConnection,
+  onStartOver,
 }: Props) {
   const insets = useSafeAreaInsets();
   const [details, setDetails] = useState(false);
@@ -153,42 +160,7 @@ export function ProfileScreen({
 
         {details ? (
           <View style={styles.details}>
-            <Text style={styles.paragraph}>
-              Your body burns about {Math.round(goal.bmr)} calories a day at
-              rest. With your activity level that comes to about{" "}
-              {Math.round(goal.tdee)} a day to stay at the same weight.
-              {trying
-                ? ` To ${profile.goal_type === "gain" ? "gain" : "lose"} weight we ${
-                    profile.goal_type === "gain" ? "add" : "remove"
-                  } ${Math.abs(Math.round(goal.daily_adjustment))} calories (${signed(goal.daily_adjustment)} a day).`
-                : " Because you want to stay where you are, nothing is added or removed."}
-            </Text>
-            {goal.weeks_to_goal !== null && profile.goal_weight_kg !== null ? (
-              <Text style={styles.paragraph}>
-                At {formatRate(goal.rate_kg_per_week, units)}, reaching{" "}
-                {formatWeight(profile.goal_weight_kg, units)} would take about{" "}
-                {goal.weeks_to_goal}{" "}
-                {goal.weeks_to_goal === 1 ? "week" : "weeks"}.
-              </Text>
-            ) : null}
-            {goal.rate_was_capped ? (
-              <Text style={styles.notice}>
-                The pace you asked for was faster than we consider safe, so it
-                was reduced to {formatRate(goal.rate_kg_per_week, units)}.
-              </Text>
-            ) : null}
-            {goal.floor_was_applied ? (
-              <Text style={styles.notice}>
-                Your target was raised to the lowest daily amount we recommend,
-                so it is higher than the maths alone gave.
-              </Text>
-            ) : null}
-            <Text style={styles.paragraph}>
-              Protein is set from your weight, fat is about a quarter of your
-              calories, and carbs fill the rest. These are estimates. Real
-              bodies vary, so adjust if your weight isn’t moving the way you
-              want.
-            </Text>
+            <GoalExplanation profile={profile} goal={goal} />
             <Text style={styles.disclaimer}>{DISCLAIMER}</Text>
           </View>
         ) : null}
@@ -216,15 +188,41 @@ export function ProfileScreen({
         >
           <Text style={styles.outlineText}>Edit my answers</Text>
         </Pressable>
+        {onCheckConnection ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Check connection"
+            onPress={onCheckConnection}
+            style={[styles.outline, styles.pairItem]}
+          >
+            <Text style={styles.outlineText}>Check connection</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      {onStartOver ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Check connection"
-          onPress={onCheckConnection}
-          style={[styles.outline, styles.pairItem]}
+          accessibilityLabel="Start over (testing)"
+          onPress={() =>
+            Alert.alert(
+              "Start over?",
+              "This forgets your answers on this phone and shows the survey again, like a first launch. Your old data stays on the server but you will not see it.",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Start over",
+                  style: "destructive",
+                  onPress: onStartOver,
+                },
+              ],
+            )
+          }
+          style={styles.startOver}
         >
-          <Text style={styles.outlineText}>Check connection</Text>
+          <Text style={styles.startOverText}>Start over (testing only)</Text>
         </Pressable>
-      </View>
+      ) : null}
 
       <Text style={styles.footer}>
         Estimates only, not medical advice. Talk to a doctor or dietitian before
@@ -280,6 +278,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   outlineAccent: { fontSize: 14, fontWeight: "600", color: colors.accent },
+  startOver: {
+    alignSelf: "center",
+    minHeight: 44,
+    justifyContent: "center",
+    marginTop: 8,
+  },
+  startOverText: { fontSize: 14, color: colors.danger },
   outlineText: { fontSize: 14, fontWeight: "600", color: colors.text },
   details: { marginTop: 14 },
   paragraph: {

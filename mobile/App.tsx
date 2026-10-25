@@ -5,6 +5,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { formFromProfile } from "./src/features/onboarding/survey";
 import { OnboardingScreen } from "./src/features/onboarding/OnboardingScreen";
+import { WelcomeScreen } from "./src/features/onboarding/WelcomeScreen";
 import { HealthScreen } from "./src/features/health/HealthScreen";
 import { FoodScreen } from "./src/features/food/FoodScreen";
 import { WorkoutScreen } from "./src/features/workout/WorkoutScreen";
@@ -17,7 +18,7 @@ import { TabBar, type TabName } from "./src/ui/TabBar";
 import { colors } from "./src/ui/theme";
 
 function Screens() {
-  const { state, retry, setSaved } = useSession();
+  const { state, retry, setSaved, startOver } = useSession();
   const [editing, setEditing] = useState(false);
   const [tab, setTab] = useState<TabName>("home");
   const [calendar, setCalendar] = useState(false);
@@ -27,6 +28,8 @@ function Screens() {
   // The day being looked at (YYYY-MM-DD); null is today. Food and Workout add to it.
   const [viewDate, setViewDate] = useState<string | null>(null);
   const [checkingConnection, setCheckingConnection] = useState(false);
+  // True right after the first survey, until the person taps Start on the welcome screen.
+  const [welcome, setWelcome] = useState(false);
 
   if (checkingConnection) {
     return <HealthScreen onBack={() => setCheckingConnection(false)} />;
@@ -59,7 +62,14 @@ function Screens() {
         </View>
       );
     case "needs-survey":
-      return <OnboardingScreen onSaved={setSaved} />;
+      return (
+        <OnboardingScreen
+          onSaved={(saved) => {
+            setSaved(saved);
+            setWelcome(true);
+          }}
+        />
+      );
     case "ready":
       if (editing) {
         return (
@@ -73,6 +83,15 @@ function Screens() {
           />
         );
       }
+      if (welcome) {
+        return (
+          <WelcomeScreen
+            profile={state.profile}
+            goal={state.goal}
+            onStart={() => setWelcome(false)}
+          />
+        );
+      }
       return (
         <View style={styles.app}>
           <View style={styles.body}>
@@ -83,6 +102,7 @@ function Screens() {
                 date={viewDate}
                 onCalendar={() => setCalendar(true)}
                 onToday={() => setViewDate(null)}
+                onPickDay={setViewDate}
               />
             ) : tab === "food" ? (
               <FoodScreen
@@ -99,6 +119,7 @@ function Screens() {
                 date={viewDate}
                 onCalendar={() => setCalendar(true)}
                 onToday={() => setViewDate(null)}
+                onPickDay={setViewDate}
                 onChanged={bump}
               />
             ) : (
@@ -106,7 +127,18 @@ function Screens() {
                 profile={state.profile}
                 goal={state.goal}
                 onChangeAnswers={() => setEditing(true)}
-                onCheckConnection={() => setCheckingConnection(true)}
+                onCheckConnection={
+                  __DEV__ ? () => setCheckingConnection(true) : undefined
+                }
+                onStartOver={
+                  __DEV__
+                    ? () => {
+                        setTab("home");
+                        setViewDate(null);
+                        startOver();
+                      }
+                    : undefined
+                }
               />
             )}
             {calendar ? (

@@ -28,6 +28,8 @@ type Props = {
   onCalendar: () => void;
   /** Goes back to today (shown as a button while another day is open). */
   onToday?: () => void;
+  /** Opens a day tapped in the bar chart (null for today). */
+  onPickDay?: (date: string | null) => void;
 };
 
 function grams(value: number | null): number {
@@ -89,13 +91,19 @@ function Macro({
   );
 }
 
-function weekBars(week: Week, goal: number | null, selected: string) {
+function weekBars(
+  week: Week,
+  goal: number | null,
+  selected: string,
+  today: string,
+) {
   const top = Math.max(goal ?? 0, ...week.days.map((day) => day.calories), 1);
   return {
     bars: week.days.map((day) => ({
       label: weekdayShort(day.date).slice(0, 1),
       fraction: day.calories / top,
       today: day.date === selected,
+      pickable: day.date <= today,
     })),
     target: goal !== null ? goal / top : null,
   };
@@ -108,6 +116,7 @@ export function HomeScreen({
   date,
   onCalendar,
   onToday,
+  onPickDay,
 }: Props) {
   const insets = useSafeAreaInsets();
   const { state, reload } = useDay(reloadKey, date);
@@ -188,15 +197,22 @@ export function HomeScreen({
             </View>
             {weekState.state.kind === "ready" ? (
               (() => {
+                const week = weekState.state.week;
+                const realToday = day?.today ?? week.end;
                 const { bars, target } = weekBars(
-                  weekState.state.week,
-                  weekState.state.week.goal_calories,
-                  weekState.state.week.end,
+                  week,
+                  week.goal_calories,
+                  week.end,
+                  realToday,
                 );
                 return (
                   <WeekBars
                     bars={bars}
                     target={target}
+                    onPick={(i) => {
+                      const picked = week.days[i].date;
+                      onPickDay?.(picked === realToday ? null : picked);
+                    }}
                     accessibilityLabel="Calories eaten in the last seven days, with the target as a dashed line"
                   />
                 );
