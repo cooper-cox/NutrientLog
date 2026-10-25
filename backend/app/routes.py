@@ -354,6 +354,22 @@ def add_workout(
     return workouts.workout_out(workouts.add_workout(session, user, data, today))
 
 
+@v1.put("/workouts/{workout_id}", response_model=WorkoutOut, tags=["workouts"])
+def change_workout(
+    workout_id: uuid.UUID,
+    data: WorkoutIn,
+    user: CurrentUser,
+    session: SessionDep,
+    now: Annotated[datetime, Depends(utc_now)],
+) -> WorkoutOut:
+    """Change a workout (what, how long, how hard, calories). It stays on its day unless moved."""
+    today = log.today_for(user, now)
+    changed = workouts.change_workout(session, user, workout_id, data, today)
+    if changed is None:
+        raise HTTPException(status_code=404, detail="workout not found")
+    return workouts.workout_out(changed)
+
+
 @v1.delete("/workouts/{workout_id}", status_code=204, tags=["workouts"])
 def delete_workout(workout_id: uuid.UUID, user: CurrentUser, session: SessionDep) -> Response:
     if not workouts.remove_workout(session, user, workout_id):

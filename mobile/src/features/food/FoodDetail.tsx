@@ -36,6 +36,7 @@ import {
   servingAmountText,
   type PickedFood,
 } from "./amounts";
+import { colors } from "../../ui/theme";
 
 const WAIT_MS = 350;
 
@@ -339,9 +340,9 @@ export function FoodDetail({
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#ffffff" },
+  screen: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 20 },
-  name: { fontSize: 24, fontWeight: "700", color: "#111111", marginTop: 16 },
+  name: { fontSize: 24, fontWeight: "700", color: colors.text, marginTop: 16 },
   chips: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -350,30 +351,30 @@ const styles = StyleSheet.create({
   },
   chip: {
     borderWidth: 1,
-    borderColor: "#999999",
+    borderColor: colors.border,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
     marginRight: 8,
     marginBottom: 8,
   },
-  chipText: { fontSize: 14, color: "#111111" },
+  chipText: { fontSize: 14, color: colors.text },
   spinner: { marginLeft: 8 },
   summary: {
     borderRadius: 12,
-    backgroundColor: "#f3f3f3",
+    backgroundColor: colors.surface2,
     padding: 16,
     marginBottom: 12,
     alignItems: "center",
   },
-  big: { fontSize: 36, fontWeight: "700", color: "#111111" },
-  small: { fontSize: 15, color: "#555555", marginTop: 2 },
+  big: { fontSize: 36, fontWeight: "700", color: colors.text },
+  small: { fontSize: 15, color: colors.muted, marginTop: 2 },
   macros: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "center",
     marginTop: 10,
   },
-  macro: { fontSize: 15, color: "#111111", marginHorizontal: 8 },
-  error: { fontSize: 15, color: "#b00020", marginBottom: 8 },
+  macro: { fontSize: 15, color: colors.text, marginHorizontal: 8 },
+  error: { fontSize: 15, color: colors.danger, marginBottom: 8 },
 });

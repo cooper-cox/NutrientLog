@@ -6,6 +6,7 @@ import { ApiError } from "../../api/client";
 import { saveFood, type SavedFood } from "../../api/food";
 import { Button, FormGroup, Input } from "../../ui/components";
 import { manualFood, type ManualForm } from "./amounts";
+import { colors } from "../../ui/theme";
 
 type Props = {
   /** Start from these values (a copy of a food to correct), or from just a name. */
@@ -151,15 +152,15 @@ export function ManualFood({
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#ffffff" },
+  screen: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 20 },
-  title: { fontSize: 24, fontWeight: "700", color: "#111111", marginTop: 16 },
+  title: { fontSize: 24, fontWeight: "700", color: colors.text, marginTop: 16 },
   help: {
     fontSize: 15,
-    color: "#555555",
+    color: colors.muted,
     marginTop: 4,
     marginBottom: 20,
     lineHeight: 21,
   },
-  error: { fontSize: 15, color: "#b00020", marginBottom: 8 },
+  error: { fontSize: 15, color: colors.danger, marginBottom: 8 },
 });

@@ -1,7 +1,5 @@
-import { useState } from "react";
 import {
   ActivityIndicator,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -9,31 +7,31 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import type { Goal, Profile } from "../../api/endpoints";
-import type { Day } from "../../api/food";
+import type { Goal } from "../../api/endpoints";
+import type { Day, Week } from "../../api/food";
 import { Button } from "../../ui/components";
+import { ScreenHeader } from "../../ui/ScreenHeader";
+import { colors, type } from "../../ui/theme";
 import { kcalText } from "../food/amounts";
-import { dayLabel, shiftDate, shortDate } from "./dates";
-import { useDay } from "./useDay";
-import { CalendarTab } from "./CalendarTab";
 import { DayBurn } from "./DayBurn";
-import { DayEntries } from "./DayEntries";
-import { WeekTab } from "./WeekTab";
+import { WeekPager } from "./weekPaging";
+import { dayLabel, monthDay, shortDate, weekdayShort } from "./dates";
+import { useDay } from "./useDay";
+import { useWeek } from "./useWeek";
+import { WeekBars } from "./WeekBars";
 
 type Props = {
-  profile: Profile;
   goal: Goal;
   /** Changes after something is added, so the day reloads. */
   reloadKey: number;
-  /** The day being looked at (YYYY-MM-DD); null means today. Kept by the app so it survives Add food. */
+  /** The day being looked at (YYYY-MM-DD); null means today. */
   date: string | null;
-  onDateChange: (date: string | null) => void;
-  onAddFood: () => void;
-  onAddWorkout: () => void;
-  onShowTargets: () => void;
+  onCalendar: () => void;
+  /** Goes back to today (shown as a button while another day is open). */
+  onToday?: () => void;
+  /** Opens a day tapped in the bar chart (null for today). */
+  onPickDay?: (date: string | null) => void;
 };
-
-const TAB_NAMES = { day: "Day", week: "Week", calendar: "Calendar" } as const;
 
 function grams(value: number | null): number {
   return Math.round(value ?? 0);
@@ -49,266 +47,327 @@ function Left({ day, isToday }: { day: Day; isToday: boolean }) {
     );
   }
   const over = remaining < 0;
+  const size = Math.abs(Math.round(remaining));
   return (
-    <>
+    <View style={styles.heroRow}>
       <Text
         style={[styles.big, over && styles.over]}
-        accessibilityLabel={`${Math.abs(Math.round(remaining))} calories ${over ? "over" : "left"}`}
+        accessibilityLabel={`${size} calories ${over ? "over" : "left"}`}
       >
-        {Math.abs(Math.round(remaining))}
+        {size.toLocaleString("en-US")}
       </Text>
       <Text style={styles.label}>
         {over
-          ? "calories over your target"
+          ? "calories over"
           : isToday
-            ? "calories left today"
+            ? "calories left"
             : "calories left that day"}
       </Text>
-    </>
+    </View>
   );
 }
 
-/** A day: calories left, what was eaten, and the way to add more. Arrows move between days. */
+function Macro({
+  name,
+  eaten,
+  target,
+}: {
+  name: string;
+  eaten: number;
+  target: number;
+}) {
+  const fraction = target > 0 ? Math.min(1, eaten / target) : 0;
+  return (
+    <View style={styles.macroRow}>
+      <Text style={styles.macroName}>{name}</Text>
+      <View style={styles.track}>
+        <View
+          style={[styles.fill, { width: `${Math.round(fraction * 100)}%` }]}
+        />
+      </View>
+      <Text style={styles.macroValue}>
+        {eaten} / {target} g
+      </Text>
+    </View>
+  );
+}
+
+/** The bars for one fixed Sunday-to-Saturday week; days after the real today are left empty. */
+function weekBars(
+  week: Week,
+  goal: number | null,
+  viewed: string,
+  today: string,
+) {
+  const top = Math.max(goal ?? 0, ...week.days.map((day) => day.calories), 1);
+  return {
+    bars: week.days.map((day) => ({
+      label: `${weekdayShort(day.date)}\n${monthDay(day.date)}`,
+      fraction: day.date > today ? null : day.calories / top,
+      today: day.date === viewed,
+      pickable: day.date <= today,
+    })),
+    target: goal !== null ? goal / top : null,
+  };
+}
+
+/** One week of the calories chart, with its average. */
+function WeekPage({
+  reloadKey,
+  end,
+  day,
+  today,
+  onPick,
+}: {
+  reloadKey: number;
+  end: string;
+  day: string;
+  today: string;
+  onPick?: (date: string | null) => void;
+}) {
+  const { state } = useWeek(reloadKey, end);
+  if (state.kind === "error") {
+    return <Text style={styles.small}>{state.message}</Text>;
+  }
+  if (state.kind !== "ready" || state.week.end !== end) {
+    return <ActivityIndicator />;
+  }
+  const week = state.week;
+  const { bars, target } = weekBars(week, week.goal_calories, day, today);
+  return (
+    <View>
+      {week.average_calories !== null ? (
+        <Text style={[styles.small, styles.avg]}>
+          avg {kcalText(week.average_calories)}
+        </Text>
+      ) : null}
+      <WeekBars
+        bars={bars}
+        target={target}
+        onPick={(i) => {
+          const picked = week.days[i].date;
+          onPick?.(picked === today ? null : picked);
+        }}
+        accessibilityLabel="Calories eaten each day of this week, with the target as a dashed line"
+      />
+    </View>
+  );
+}
+
+/** The calories chart: a fixed Sunday-to-Saturday week you can drag sideways to other weeks. */
+function WeekCard({
+  reloadKey,
+  day,
+  today,
+  onPick,
+}: {
+  reloadKey: number;
+  day: string;
+  today: string;
+  onPick?: (date: string | null) => void;
+}) {
+  return (
+    <View style={styles.card}>
+      <WeekPager
+        day={day}
+        today={today}
+        renderHead={(title) => (
+          <View style={styles.cardHead}>
+            <Text style={styles.cardTitle}>{title}</Text>
+          </View>
+        )}
+        renderWeek={(end) => (
+          <WeekPage
+            reloadKey={reloadKey}
+            end={end}
+            day={day}
+            today={today}
+            onPick={onPick}
+          />
+        )}
+      />
+    </View>
+  );
+}
+
+/** Home: calories left for the day, last seven days, today's macros and what was burned. */
 export function HomeScreen({
-  profile,
   goal,
   reloadKey,
   date,
-  onDateChange,
-  onAddFood,
-  onAddWorkout,
-  onShowTargets,
+  onCalendar,
+  onToday,
+  onPickDay,
 }: Props) {
   const insets = useSafeAreaInsets();
-  const { state, reload, remove, removeWorkout, changeAmount } = useDay(
-    reloadKey,
-    date,
-  );
-  const [view, setView] = useState<"day" | "week" | "calendar">("day");
-  const shown = state.kind === "ready" ? state.day.date : date;
-  const today = state.kind === "ready" ? state.day.today : null;
-  const isToday = shown === null || shown === today;
-  const label =
-    state.kind === "ready"
-      ? dayLabel(state.day.date, state.day.today)
-      : date
-        ? shortDate(date)
-        : "Today";
-
-  function goTo(offset: number) {
-    if (shown === null) return;
-    const next = shiftDate(shown, offset);
-    onDateChange(next === today ? null : next);
-  }
+  const { state, reload } = useDay(reloadKey, date);
+  const day = state.kind === "ready" ? state.day : null;
+  const shown = day?.date ?? date;
+  const isToday = date === null || (day !== null && day.date === day.today);
+  const title = day
+    ? dayLabel(day.date, day.today)
+    : date
+      ? shortDate(date)
+      : "Today";
+  const eaten = day?.totals.calories ?? 0;
+  const fraction =
+    day && goal.calories > 0 ? Math.min(1, eaten / goal.calories) : 0;
 
   return (
     <ScrollView
       style={styles.screen}
-      keyboardShouldPersistTaps="handled"
-      automaticallyAdjustKeyboardInsets
       contentContainerStyle={[
         styles.content,
-        { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 32 },
+        { paddingTop: insets.top + 12, paddingBottom: 24 },
       ]}
     >
-      <Text style={styles.title} accessibilityRole="header">
-        {profile.name ?? "NutrientLog"}
-      </Text>
+      <ScreenHeader
+        title={title}
+        subtitle={shown ? shortDate(shown) : undefined}
+        onCalendar={onCalendar}
+        pastDay={!isToday}
+        onToday={onToday}
+      />
 
-      <View style={styles.tabs}>
-        {(["day", "week", "calendar"] as const).map((name) => (
-          <Pressable
-            key={name}
-            accessibilityRole="button"
-            accessibilityLabel={`${TAB_NAMES[name]} view`}
-            accessibilityState={{ selected: view === name }}
-            onPress={() => setView(name)}
-            style={[styles.tab, view === name && styles.tabOn]}
-          >
-            <Text style={[styles.tabText, view === name && styles.tabTextOn]}>
-              {TAB_NAMES[name]}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+      {state.kind === "loading" ? (
+        <ActivityIndicator style={styles.spinner} />
+      ) : null}
+      {state.kind === "error" ? (
+        <View>
+          <Text style={styles.error} accessibilityRole="alert">
+            {state.message}
+          </Text>
+          <Button title="Try again" onPress={reload} secondary />
+        </View>
+      ) : null}
 
-      {view === "calendar" ? (
-        <CalendarTab reloadKey={reloadKey} />
-      ) : view === "week" ? (
-        <WeekTab
-          reloadKey={reloadKey}
-          onPickDay={(picked) => {
-            onDateChange(picked);
-            setView("day");
-          }}
-        />
-      ) : (
+      {day ? (
         <>
-          <View style={styles.dateRow}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Previous day"
-              disabled={shown === null}
-              onPress={() => goTo(-1)}
-              style={styles.arrow}
+          <View style={styles.hero}>
+            <Left day={day} isToday={isToday} />
+            <View
+              style={styles.progress}
+              accessibilityRole="progressbar"
+              accessibilityLabel={`${Math.round(fraction * 100)} percent of the day's calories eaten`}
             >
-              <Text style={styles.arrowText}>‹</Text>
-            </Pressable>
-            <Text style={styles.dateLabel} accessibilityRole="header">
-              {label}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Next day"
-              disabled={isToday}
-              onPress={() => goTo(1)}
-              style={[styles.arrow, isToday && styles.arrowOff]}
-            >
-              <Text style={styles.arrowText}>›</Text>
-            </Pressable>
+              <View
+                style={[
+                  styles.progressFill,
+                  { width: `${Math.round(fraction * 100)}%` },
+                ]}
+              />
+            </View>
+            <View style={styles.eatenRow}>
+              <Text style={styles.small}>Eaten {kcalText(eaten)}</Text>
+              <Text style={styles.small}>
+                {goal.calories.toLocaleString("en-US")} kcal target
+              </Text>
+            </View>
           </View>
 
-          {state.kind === "loading" ? (
-            <ActivityIndicator style={styles.spinner} />
-          ) : null}
-          {state.kind === "error" ? (
-            <View>
-              <Text style={styles.error} accessibilityRole="alert">
-                {state.message}
-              </Text>
-              <Button title="Try again" onPress={reload} secondary />
-            </View>
-          ) : null}
+          <WeekCard
+            reloadKey={reloadKey}
+            day={day.date}
+            today={day.today}
+            onPick={onPickDay}
+          />
 
-          {state.kind === "ready" ? (
-            <>
-              <View style={styles.hero}>
-                <Left day={state.day} isToday={isToday} />
-                <Text style={styles.sub}>
-                  Eaten {kcalText(state.day.totals.calories ?? 0)} of{" "}
-                  {goal.calories} kcal
-                </Text>
-              </View>
-              <View style={styles.macros}>
-                <Text style={styles.macro}>
-                  Protein {grams(state.day.totals.protein_g)} / {goal.protein_g}{" "}
-                  g
-                </Text>
-                <Text style={styles.macro}>
-                  Fat {grams(state.day.totals.fat_g)} / {goal.fat_g} g
-                </Text>
-                <Text style={styles.macro}>
-                  Carbs {grams(state.day.totals.carb_g)} / {goal.carb_g} g
-                </Text>
-              </View>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>
+              {isToday ? "Macros today" : "Macros"}
+            </Text>
+            <Macro
+              name="Protein"
+              eaten={grams(day.totals.protein_g)}
+              target={goal.protein_g}
+            />
+            <Macro
+              name="Fat"
+              eaten={grams(day.totals.fat_g)}
+              target={goal.fat_g}
+            />
+            <Macro
+              name="Carbs"
+              eaten={grams(day.totals.carb_g)}
+              target={goal.carb_g}
+            />
+          </View>
 
-              <Button
-                title={isToday ? "Add food" : `Add food to ${label}`}
-                onPress={onAddFood}
-              />
-
-              <DayEntries
-                day={state.day}
-                label={label}
-                isToday={isToday}
-                remove={remove}
-                changeAmount={changeAmount}
-              />
-
-              <DayBurn day={state.day} removeWorkout={removeWorkout} />
-              <Button
-                title={isToday ? "Add workout" : `Add workout to ${label}`}
-                onPress={onAddWorkout}
-                secondary
-              />
-            </>
-          ) : null}
+          <DayBurn day={day} />
         </>
-      )}
-
-      <View style={styles.footer}>
-        <Button
-          title="My targets and answers"
-          onPress={onShowTargets}
-          secondary
-        />
-      </View>
+      ) : null}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#ffffff" },
+  screen: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 20 },
-  title: { fontSize: 26, fontWeight: "700", color: "#111111" },
   spinner: { marginTop: 40 },
-  tabs: { flexDirection: "row", marginTop: 12, marginBottom: 4 },
-  tab: {
-    paddingVertical: 8,
-    paddingHorizontal: 18,
-    borderRadius: 16,
-    backgroundColor: "#f0f0f0",
-    marginRight: 8,
+  error: { fontSize: 16, color: colors.danger, marginVertical: 16 },
+  hero: { marginBottom: 16, paddingHorizontal: 4 },
+  heroRow: { flexDirection: "row", alignItems: "baseline" },
+  big: {
+    fontSize: 64,
+    fontWeight: "700",
+    color: colors.text,
+    letterSpacing: -2,
+    marginRight: 10,
   },
-  tabOn: { backgroundColor: "#111111" },
-  tabText: { fontSize: 15, color: "#111111" },
-  tabTextOn: { color: "#ffffff" },
-  dateRow: {
+  over: { color: colors.danger },
+  label: { fontSize: type.subtitle, color: colors.muted },
+  progress: {
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.surface,
+    overflow: "hidden",
+    marginTop: 8,
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 6,
+    backgroundColor: colors.accent,
+  },
+  eatenRow: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    marginTop: 12,
+    marginTop: 8,
   },
-  dateLabel: { fontSize: 20, fontWeight: "600", color: "#111111" },
-  arrow: { paddingHorizontal: 16, paddingVertical: 4 },
-  arrowOff: { opacity: 0.25 },
-  arrowText: { fontSize: 32, color: "#111111" },
-  entryBlock: {},
-  action: { paddingVertical: 8, paddingHorizontal: 10 },
-  editText: { fontSize: 15, color: "#1a5fb4" },
-  backdrop: {
-    flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.4)",
+  small: { fontSize: type.small, color: colors.muted },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: 22,
+    padding: 18,
+    marginBottom: 14,
   },
-  sheet: {
-    backgroundColor: "#ffffff",
-    padding: 20,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-  },
-  sheetTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#111111",
+  avg: { textAlign: "right", marginBottom: 4 },
+  cardHead: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "baseline",
     marginBottom: 12,
   },
-  error: { fontSize: 16, color: "#b00020", marginVertical: 16 },
-  hero: { alignItems: "center", marginTop: 24, marginBottom: 16 },
-  big: { fontSize: 64, fontWeight: "700", color: "#111111" },
-  over: { color: "#b00020" },
-  label: { fontSize: 18, color: "#555555", textAlign: "center" },
-  sub: { fontSize: 15, color: "#555555", marginTop: 6 },
-  macros: { alignItems: "center", marginBottom: 20 },
-  macro: { fontSize: 15, color: "#222222", marginTop: 2 },
-  heading: {
-    fontSize: 20,
+  cardTitle: {
+    fontSize: type.header,
     fontWeight: "600",
-    color: "#111111",
-    marginTop: 24,
-    marginBottom: 8,
+    color: colors.text,
+    marginBottom: 4,
   },
-  empty: { fontSize: 16, color: "#555555" },
-  entry: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#dddddd",
+  macroRow: { flexDirection: "row", alignItems: "center", marginTop: 10 },
+  macroName: { width: 58, fontSize: type.small, color: colors.muted },
+  track: {
+    flex: 1,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.surface2,
+    overflow: "hidden",
+    marginHorizontal: 12,
   },
-  entryText: { flex: 1 },
-  entryName: { fontSize: 16, fontWeight: "600", color: "#111111" },
-  entryLine: { fontSize: 14, color: "#555555", marginTop: 2 },
-  removeText: { fontSize: 15, color: "#b00020" },
-  footer: { marginTop: 32 },
+  fill: { height: "100%", backgroundColor: colors.bar },
+  macroValue: {
+    width: 92,
+    textAlign: "right",
+    fontSize: type.small,
+    color: colors.text,
+  },
 });

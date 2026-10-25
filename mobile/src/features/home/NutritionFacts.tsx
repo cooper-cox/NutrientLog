@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 
 import type { Nutrients } from "../../api/food";
+import { colors } from "../../ui/theme";
 
 /** Every nutrient the app tracks, in label order. Keys match the server's nutrient list. */
 const ROWS: { key: string; label: string; unit: string }[] = [
@@ -37,7 +38,7 @@ export function NutritionFacts({ totals }: { totals: Nutrients }) {
   return (
     <View>
       <Text style={styles.heading} accessibilityRole="header">
-        Nutrition facts
+        Nutrients
       </Text>
       {ROWS.map((row) => (
         <View key={row.key} style={styles.row}>
@@ -60,20 +61,20 @@ export function NutritionFacts({ totals }: { totals: Nutrients }) {
 
 const styles = StyleSheet.create({
   heading: {
-    fontSize: 20,
+    fontSize: 15,
     fontWeight: "600",
-    color: "#111111",
-    marginTop: 24,
-    marginBottom: 8,
+    color: colors.muted,
+    marginTop: 16,
+    marginBottom: 4,
   },
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
     paddingVertical: 6,
     borderBottomWidth: 1,
-    borderBottomColor: "#eeeeee",
+    borderBottomColor: colors.divider,
   },
-  label: { fontSize: 15, color: "#222222" },
-  value: { fontSize: 15, color: "#222222", fontWeight: "600" },
-  note: { fontSize: 13, color: "#555555", marginTop: 8 },
+  label: { fontSize: 13, color: colors.muted },
+  value: { fontSize: 13, color: colors.text },
+  note: { fontSize: 13, color: colors.muted, marginTop: 8 },
 });

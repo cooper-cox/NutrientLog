@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getDatabaseHealth, getHealth } from '../../api/endpoints';
 import { getApiBaseUrl } from '../../config';
+import { colors } from '../../ui/theme';
 
 export type CheckState =
   { kind: 'loading' } | { kind: 'ok'; detail: string } | { kind: 'error'; message: string };
@@ -163,28 +164,28 @@ export function HealthScreen({ onBack }: { onBack?: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#ffffff' },
+  screen: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 20 },
-  title: { fontSize: 32, fontWeight: '700', color: '#111111' },
-  subtitle: { fontSize: 18, color: '#555555', marginTop: 4, marginBottom: 28 },
+  title: { fontSize: 32, fontWeight: '700', color: colors.text },
+  subtitle: { fontSize: 18, color: colors.muted, marginTop: 4, marginBottom: 28 },
   row: { marginBottom: 20 },
-  label: { fontSize: 14, color: '#555555', textTransform: 'uppercase', letterSpacing: 0.5 },
-  value: { fontSize: 20, color: '#111111', marginTop: 4 },
-  valueError: { color: '#b00020' },
-  address: { fontSize: 14, color: '#555555', marginTop: 8 },
-  hint: { fontSize: 16, color: '#111111', marginTop: 20, lineHeight: 22 },
+  label: { fontSize: 14, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
+  value: { fontSize: 20, color: colors.text, marginTop: 4 },
+  valueError: { color: colors.danger },
+  address: { fontSize: 14, color: colors.muted, marginTop: 8 },
+  hint: { fontSize: 16, color: colors.text, marginTop: 20, lineHeight: 22 },
   button: {
     marginTop: 28,
     minHeight: 48, // comfortably tappable
     borderRadius: 10,
-    backgroundColor: '#111111',
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,
   },
-  buttonDisabled: { backgroundColor: '#888888' },
+  buttonDisabled: { backgroundColor: colors.muted },
   buttonPressed: { opacity: 0.8 },
-  buttonText: { color: '#ffffff', fontSize: 18, fontWeight: '600' },
+  buttonText: { color: colors.onAccent, fontSize: 18, fontWeight: '600' },
   backButton: { marginTop: 12, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-  backText: { fontSize: 18, color: '#111111', textDecorationLine: 'underline' },
+  backText: { fontSize: 18, color: colors.text, textDecorationLine: 'underline' },
 });

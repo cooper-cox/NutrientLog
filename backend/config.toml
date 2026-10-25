@@ -24,8 +24,8 @@ plural_only = 0.9         # credit when a typed plural only matches a singular
 typo_word = 0.7           # credit for a word one letter off ("chiken")
 
 [search]
-saved_limit = 25               # saved foods shown per search
-source_limit = 50              # results asked of each outside database, per page
+saved_limit = 10               # saved foods shown per search
+source_limit = 30              # results asked of each outside database, per page
 enough_full_matches = 5        # fewer close matches than this: also ask the fallback database
 long_query_words = 3           # queries this long also ask the fallback database
 min_query_length = 2
@@ -33,7 +33,7 @@ max_query_length = 100
 timeout_seconds = 5.0          # how long one request to an outside database may take
 deadline_seconds = 4.0         # a search answers by now with whatever has arrived (slow ones are skipped)
 cache_seconds = 600.0          # an identical search is answered from memory for this long
-usda_generic_limit = 60        # plain foods asked of USDA per search
+usda_generic_limit = 40        # plain foods asked of USDA per search
 usda_loose_below = 10          # fewer strict USDA matches than this: also look for partial matches
 usda_retry_waits = [1.0, 3.0]  # seconds to wait before each retry
 off_retry_waits = [1.0, 2.0]

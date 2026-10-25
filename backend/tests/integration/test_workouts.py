@@ -30,6 +30,8 @@ def test_every_workout_route_needs_a_token(client: TestClient) -> None:
     assert client.post(WORKOUTS, json={"activity": "walking", "minutes": 5}).status_code == 401
     some_id = "00000000-0000-0000-0000-000000000000"
     assert client.delete(f"{WORKOUTS}/{some_id}").status_code == 401
+    body = {"activity": "walking", "minutes": 5}
+    assert client.put(f"{WORKOUTS}/{some_id}", json=body).status_code == 401
 
 
 def test_the_activity_list_names_activities_and_intensities(
@@ -163,6 +165,20 @@ def test_the_calendar_and_week_show_which_days_had_workouts(
     assert sorted(monday) == ["Run", "Walk"]
 
 
+def test_the_week_adds_up_workout_minutes_for_each_day(
+    client: TestClient, auth: dict[str, str]
+) -> None:
+    with_profile(client, auth)
+    walk(client, auth, minutes=30, logged_on="2026-10-05")
+    walk(client, auth, activity="running", minutes=20, logged_on="2026-10-05")
+    walk(client, auth, activity="weights", minutes=45, logged_on="2026-10-07")
+    week = client.get(f"{LOG}/week?end=2026-10-08", headers=auth).json()
+    minutes = {d["date"]: d["workout_minutes"] for d in week["days"]}
+    assert minutes["2026-10-05"] == 50
+    assert minutes["2026-10-07"] == 45
+    assert minutes["2026-10-06"] == 0
+
+
 def test_other_peoples_workouts_never_show_on_my_calendar(
     client: TestClient, auth: dict[str, str], other_auth: dict[str, str]
 ) -> None:
@@ -170,3 +186,63 @@ def test_other_peoples_workouts_never_show_on_my_calendar(
     walk(client, auth, logged_on="2026-10-05")
     month = client.get(f"{LOG}/month?month=2026-10", headers=other_auth).json()
     assert all(d["workouts"] == [] for d in month["days"])
+
+
+def test_a_workout_can_be_changed_and_its_day_updates(
+    client: TestClient, auth: dict[str, str]
+) -> None:
+    with_profile(client, auth)
+    made = walk(client, auth, logged_on="2026-10-19").json()
+    reply = client.put(
+        f"{WORKOUTS}/{made['id']}",
+        headers=auth,
+        json={"activity": "running", "minutes": 30, "intensity": "hard"},
+    )
+    assert reply.status_code == 200
+    body = reply.json()
+    assert body["id"] == made["id"] and body["label"] == "Running"
+    assert body["minutes"] == 30 and body["intensity"] == "hard"
+    assert body["calories"] == pytest.approx(8.8 * 80 * 0.5 * 1.25)
+    assert body["logged_on"] == "2026-10-19"  # stays on its day
+    day = client.get(f"{LOG}?date=2026-10-19", headers=auth).json()
+    assert [w["id"] for w in day["workouts"]] == [made["id"]]
+    assert day["burned"]["workouts"] == pytest.approx(body["calories"])
+
+
+def test_changing_a_workout_can_type_calories_or_go_back_to_the_estimate(
+    client: TestClient, auth: dict[str, str]
+) -> None:
+    with_profile(client, auth)
+    made = walk(client, auth).json()
+    url = f"{WORKOUTS}/{made['id']}"
+    typed = client.put(
+        url, headers=auth, json={"activity": "walking", "minutes": 60, "calories": 150}
+    )
+    assert typed.json()["calories"] == 150 and typed.json()["calories_typed"] is True
+    back = client.put(url, headers=auth, json={"activity": "walking", "minutes": 60})
+    assert back.json()["calories"] == pytest.approx(200) and back.json()["calories_typed"] is False
+
+
+def test_a_bad_change_is_refused_and_leaves_the_workout_alone(
+    client: TestClient, auth: dict[str, str]
+) -> None:
+    with_profile(client, auth)
+    made = walk(client, auth).json()
+    url = f"{WORKOUTS}/{made['id']}"
+    reply = client.put(url, headers=auth, json={"activity": "nope", "minutes": 60})
+    assert reply.status_code == 422
+    reply = client.put(url, headers=auth, json={"activity": "walking", "minutes": 9999})
+    assert reply.status_code == 422
+    day = client.get(LOG, headers=auth).json()
+    assert day["workouts"][0]["activity"] == "walking" and day["workouts"][0]["minutes"] == 60
+
+
+def test_nobody_else_can_change_a_workout(
+    client: TestClient, auth: dict[str, str], other_auth: dict[str, str]
+) -> None:
+    with_profile(client, auth)
+    made = walk(client, auth).json()
+    body = {"activity": "running", "minutes": 10, "calories": 50}
+    assert client.put(f"{WORKOUTS}/{made['id']}", headers=other_auth, json=body).status_code == 404
+    still = client.get(LOG, headers=auth).json()["workouts"][0]
+    assert still["activity"] == "walking"

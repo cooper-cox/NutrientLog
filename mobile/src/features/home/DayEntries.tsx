@@ -14,6 +14,7 @@ import { ApiError } from "../../api/client";
 import type { Day } from "../../api/food";
 import { Button, Input } from "../../ui/components";
 import { kcalText } from "../food/amounts";
+import { colors } from "../../ui/theme";
 
 type Props = {
   day: Day;
@@ -58,13 +59,10 @@ export function DayEntries({
 
   return (
     <View>
-      <Text style={styles.heading}>
-        {isToday ? "Eaten today" : `Eaten ${label}`}
-      </Text>
       {day.entries.length === 0 ? (
         <Text style={styles.empty}>
           {isToday
-            ? 'Nothing yet. Tap "Add food" to start.'
+            ? "Nothing yet. Search for a food to start."
             : "Nothing was logged this day."}
         </Text>
       ) : (
@@ -149,35 +147,28 @@ export function DayEntries({
 }
 
 const styles = StyleSheet.create({
-  heading: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#111111",
-    marginTop: 24,
-    marginBottom: 8,
-  },
-  empty: { fontSize: 16, color: "#555555" },
+  empty: { fontSize: 16, color: colors.muted, marginTop: 8 },
   entry: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#dddddd",
+    borderBottomColor: colors.divider,
   },
   entryText: { flex: 1 },
-  entryName: { fontSize: 16, fontWeight: "600", color: "#111111" },
-  entryLine: { fontSize: 14, color: "#555555", marginTop: 2 },
+  entryName: { fontSize: 16, fontWeight: "600", color: colors.text },
+  entryLine: { fontSize: 14, color: colors.muted, marginTop: 2 },
   action: { paddingVertical: 8, paddingHorizontal: 10 },
-  editText: { fontSize: 15, color: "#1a5fb4" },
-  removeText: { fontSize: 15, color: "#b00020" },
-  error: { fontSize: 16, color: "#b00020", marginVertical: 12 },
+  editText: { fontSize: 15, color: colors.accent },
+  removeText: { fontSize: 15, color: colors.danger },
+  error: { fontSize: 16, color: colors.danger, marginVertical: 12 },
   backdrop: {
     flex: 1,
     justifyContent: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: colors.scrim,
   },
   sheet: {
-    backgroundColor: "#ffffff",
+    backgroundColor: colors.surface,
     padding: 20,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
@@ -185,7 +176,7 @@ const styles = StyleSheet.create({
   sheetTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#111111",
+    color: colors.text,
     marginBottom: 12,
   },
 });

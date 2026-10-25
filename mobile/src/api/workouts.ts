@@ -59,6 +59,18 @@ export async function addWorkout(workout: WorkoutToAdd): Promise<Workout> {
   });
 }
 
+/** Change a logged workout (what, how long, how hard, calories). It stays on its day. */
+export async function changeWorkout(
+  workoutId: string,
+  workout: WorkoutToAdd,
+): Promise<Workout> {
+  const { loggedOn, ...rest } = workout;
+  return apiRequest<Workout>("PUT", `/api/v1/workouts/${workoutId}`, {
+    token: await token(),
+    body: { ...rest, ...(loggedOn ? { logged_on: loggedOn } : {}) },
+  });
+}
+
 export async function deleteWorkout(workoutId: string): Promise<void> {
   await apiRequest<void>("DELETE", `/api/v1/workouts/${workoutId}`, {
     token: await token(),

@@ -41,6 +41,8 @@ type Session = {
   retry: () => void;
   /** Use freshly saved answers without asking the server again. */
   setSaved: (saved: ProfileSaved) => void;
+  /** For testing: forget the saved login so the survey shows again. */
+  startOver: () => void;
 };
 
 export function useSession(): Session {
@@ -72,10 +74,15 @@ export function useSession(): Session {
     [ignoreLateAnswers],
   );
 
+  const startOver = useCallback(() => {
+    ignoreLateAnswers();
+    void clearStoredToken().then(() => setState({ kind: 'needs-survey' }));
+  }, [ignoreLateAnswers]);
+
   useEffect(() => {
     start();
     return ignoreLateAnswers;
   }, [start, ignoreLateAnswers]);
 
-  return { state, retry, setSaved };
+  return { state, retry, setSaved, startOver };
 }

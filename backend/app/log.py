@@ -167,6 +167,7 @@ def _summaries(
     for entry in session.scalars(statement):
         per_day.setdefault(entry.logged_on, []).append(entry_out(entry))
     trained = workouts.short_names_by_day(session, user, start, end)
+    minutes = workouts.minutes_by_day(session, user, start, end)
     days = []
     for offset in range((end - start).days + 1):
         on = start + timedelta(days=offset)
@@ -179,6 +180,7 @@ def _summaries(
                 protein_g=totals.get("protein_g") or 0.0,
                 entries=len(items),
                 workouts=trained.get(on, []),
+                workout_minutes=minutes.get(on, 0),
             )
         )
     logged = [d.calories for d in days if d.entries]

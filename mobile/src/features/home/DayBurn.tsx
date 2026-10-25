@@ -1,10 +1,10 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import type { Day } from "../../api/food";
+import { colors, type } from "../../ui/theme";
 
 type Props = {
   day: Day;
-  removeWorkout: (workoutId: string) => Promise<void>;
 };
 
 function kcal(value: number): string {
@@ -20,11 +20,11 @@ export function balanceText(balance: number): string {
     : `${size.toLocaleString("en-US")} kcal deficit (burned more than eaten)`;
 }
 
-/** What the day burned (resting + workouts), the balance against what was eaten, and workouts. */
-export function DayBurn({ day, removeWorkout }: Props) {
-  const { burned, workouts } = day;
+/** What the day burned (resting + workouts) and the balance against what was eaten. */
+export function DayBurn({ day }: Props) {
+  const { burned } = day;
   return (
-    <View accessibilityLabel="Calories burned">
+    <View style={styles.card} accessibilityLabel="Calories burned">
       <Text style={styles.heading}>Burned</Text>
       <Text style={styles.big}>{kcal(burned.total)}</Text>
       <Text style={styles.line}>
@@ -40,52 +40,20 @@ export function DayBurn({ day, removeWorkout }: Props) {
       >
         {balanceText(day.balance_calories)}
       </Text>
-
-      {workouts.map((workout) => (
-        <View key={workout.id} style={styles.workout}>
-          <View style={styles.workoutText}>
-            <Text style={styles.name}>{workout.label}</Text>
-            <Text style={styles.line}>
-              {workout.minutes} min · {workout.intensity} ·{" "}
-              {workout.calories_typed ? "" : "about "}
-              {kcal(workout.calories)}
-            </Text>
-          </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Remove ${workout.label} workout`}
-            onPress={() => void removeWorkout(workout.id)}
-            style={styles.action}
-          >
-            <Text style={styles.removeText}>Remove</Text>
-          </Pressable>
-        </View>
-      ))}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  heading: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#111111",
-    marginTop: 24,
-    marginBottom: 4,
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: 22,
+    padding: 18,
+    marginBottom: 14,
   },
-  big: { fontSize: 28, fontWeight: "700", color: "#111111" },
-  line: { fontSize: 14, color: "#555555", marginTop: 2 },
-  balance: { fontSize: 16, color: "#1a6b2f", marginTop: 6, marginBottom: 8 },
-  deficit: { color: "#b00020" },
-  workout: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#dddddd",
-  },
-  workoutText: { flex: 1 },
-  name: { fontSize: 16, fontWeight: "600", color: "#111111" },
-  action: { paddingVertical: 8, paddingHorizontal: 10 },
-  removeText: { fontSize: 15, color: "#b00020" },
+  heading: { fontSize: type.header, fontWeight: "600", color: colors.text },
+  big: { fontSize: 28, fontWeight: "700", color: colors.accent, marginTop: 6 },
+  line: { fontSize: 14, color: colors.muted, marginTop: 2 },
+  balance: { fontSize: 15, color: colors.good, marginTop: 8 },
+  deficit: { color: colors.warn },
 });

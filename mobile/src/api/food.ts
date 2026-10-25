@@ -86,6 +86,8 @@ export type WeekDay = {
   entries: number;
   /** Short names of the workouts done that day ("Run", "Lift"), in the order done. */
   workouts: string[];
+  /** Total workout minutes that day, for the weekly chart. */
+  workout_minutes: number;
 };
 
 export type Week = {
