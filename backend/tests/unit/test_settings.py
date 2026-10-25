@@ -19,7 +19,7 @@ def test_the_values_are_the_ones_the_app_always_used() -> None:
     config = Settings(database_url=DB, **load_config())  # type: ignore[arg-type]
     assert config.ranking.coverage == 100.0
     assert config.ranking.exact_name == 20.0
-    assert config.search.usda_generic_limit == 60
+    assert config.search.usda_generic_limit == 40
     assert config.search.usda_retry_waits == (1.0, 3.0)
     assert config.search.off_retry_waits == (1.0, 2.0)
     assert config.search.deadline_seconds == 4.0

@@ -14,7 +14,7 @@ import { ScreenHeader } from "../../ui/ScreenHeader";
 import { colors, type } from "../../ui/theme";
 import { kcalText } from "../food/amounts";
 import { DayBurn } from "./DayBurn";
-import { SwipeWeeks, useWeekPaging } from "./weekPaging";
+import { WeekPager } from "./weekPaging";
 import { dayLabel, monthDay, shortDate, weekdayShort } from "./dates";
 import { useDay } from "./useDay";
 import { useWeek } from "./useWeek";
@@ -111,7 +111,50 @@ function weekBars(
   };
 }
 
-/** The calories chart: a fixed Sunday-to-Saturday week; swipe sideways for other weeks. */
+/** One week of the calories chart, with its average. */
+function WeekPage({
+  reloadKey,
+  end,
+  day,
+  today,
+  onPick,
+}: {
+  reloadKey: number;
+  end: string;
+  day: string;
+  today: string;
+  onPick?: (date: string | null) => void;
+}) {
+  const { state } = useWeek(reloadKey, end);
+  if (state.kind === "error") {
+    return <Text style={styles.small}>{state.message}</Text>;
+  }
+  if (state.kind !== "ready" || state.week.end !== end) {
+    return <ActivityIndicator />;
+  }
+  const week = state.week;
+  const { bars, target } = weekBars(week, week.goal_calories, day, today);
+  return (
+    <View>
+      {week.average_calories !== null ? (
+        <Text style={[styles.small, styles.avg]}>
+          avg {kcalText(week.average_calories)}
+        </Text>
+      ) : null}
+      <WeekBars
+        bars={bars}
+        target={target}
+        onPick={(i) => {
+          const picked = week.days[i].date;
+          onPick?.(picked === today ? null : picked);
+        }}
+        accessibilityLabel="Calories eaten each day of this week, with the target as a dashed line"
+      />
+    </View>
+  );
+}
+
+/** The calories chart: a fixed Sunday-to-Saturday week you can drag sideways to other weeks. */
 function WeekCard({
   reloadKey,
   day,
@@ -123,46 +166,26 @@ function WeekCard({
   today: string;
   onPick?: (date: string | null) => void;
 }) {
-  const paging = useWeekPaging(day, today);
-  const { state } = useWeek(reloadKey, paging.end);
   return (
     <View style={styles.card}>
-      <View style={styles.cardHead}>
-        <Text style={styles.cardTitle}>{paging.title}</Text>
-        {state.kind === "ready" && state.week.average_calories !== null ? (
-          <Text style={styles.small}>
-            avg {kcalText(state.week.average_calories)}
-          </Text>
-        ) : null}
-      </View>
-      <SwipeWeeks onEarlier={paging.earlier} onLater={paging.later}>
-        {state.kind === "ready" && state.week.end === paging.end ? (
-          (() => {
-            const week = state.week;
-            const { bars, target } = weekBars(
-              week,
-              week.goal_calories,
-              day,
-              today,
-            );
-            return (
-              <WeekBars
-                bars={bars}
-                target={target}
-                onPick={(i) => {
-                  const picked = week.days[i].date;
-                  onPick?.(picked === today ? null : picked);
-                }}
-                accessibilityLabel="Calories eaten each day of this week, with the target as a dashed line. Swipe sideways for other weeks."
-              />
-            );
-          })()
-        ) : state.kind === "error" ? (
-          <Text style={styles.small}>{state.message}</Text>
-        ) : (
-          <ActivityIndicator />
+      <WeekPager
+        day={day}
+        today={today}
+        renderHead={(title) => (
+          <View style={styles.cardHead}>
+            <Text style={styles.cardTitle}>{title}</Text>
+          </View>
         )}
-      </SwipeWeeks>
+        renderWeek={(end) => (
+          <WeekPage
+            reloadKey={reloadKey}
+            end={end}
+            day={day}
+            today={today}
+            onPick={onPick}
+          />
+        )}
+      />
     </View>
   );
 }
@@ -317,6 +340,7 @@ const styles = StyleSheet.create({
     padding: 18,
     marginBottom: 14,
   },
+  avg: { textAlign: "right", marginBottom: 4 },
   cardHead: {
     flexDirection: "row",
     justifyContent: "space-between",

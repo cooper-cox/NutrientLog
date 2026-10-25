@@ -22,15 +22,11 @@ import {
 import { Button, FormGroup, Input } from "../../ui/components";
 import { ScreenHeader } from "../../ui/ScreenHeader";
 import { colors, pickerItem } from "../../ui/theme";
-import {
-  monthDay,
-  shortDate,
-  weekdayShort,
-} from "../home/dates";
+import { monthDay, shortDate, weekdayShort } from "../home/dates";
 import { useDay } from "../home/useDay";
 import { useWeek } from "../home/useWeek";
 import { WeekBars } from "../home/WeekBars";
-import { SwipeWeeks, useWeekPaging } from "../home/weekPaging";
+import { WeekPager } from "../home/weekPaging";
 import { parseNumber } from "../food/amounts";
 
 type Props = {
@@ -92,6 +88,52 @@ export function weekChart(week: Week, viewed: string, today: string = viewed) {
   };
 }
 
+function WeekPage({
+  reloadKey,
+  end,
+  day,
+  today,
+  onPick,
+}: {
+  reloadKey: number;
+  end: string;
+  day: string;
+  today: string;
+  onPick?: (date: string | null) => void;
+}) {
+  const { state } = useWeek(reloadKey, end);
+  if (state.kind === "error") {
+    return <Text style={styles.error}>{state.message}</Text>;
+  }
+  if (state.kind !== "ready" || state.week.end !== end) {
+    return <ActivityIndicator />;
+  }
+  const week = state.week;
+  const chart = weekChart(week, day, today);
+  return (
+    <View>
+      <View style={styles.cardHead}>
+        <Text style={styles.small}>Minutes</Text>
+        <Text style={styles.small}>
+          {chart.workouts} {chart.workouts === 1 ? "workout" : "workouts"} ·{" "}
+          {chart.minutes} min
+        </Text>
+      </View>
+      <WeekBars
+        bars={chart.bars}
+        height={64}
+        ticks={[String(chart.top), String(chart.top / 2), "0"]}
+        onPick={(i) => {
+          const picked = week.days[i].date;
+          onPick?.(picked === today ? null : picked);
+        }}
+        accessibilityLabel="Minutes worked out each day of this week"
+      />
+    </View>
+  );
+}
+
+/** The minutes chart: a fixed Sunday-to-Saturday week you can drag sideways to other weeks. */
 function WeekCard({
   reloadKey,
   day,
@@ -103,43 +145,22 @@ function WeekCard({
   today: string;
   onPick?: (date: string | null) => void;
 }) {
-  const paging = useWeekPaging(day, today);
-  const { state } = useWeek(reloadKey, paging.end);
-  const chart =
-    state.kind === "ready" && state.week.end === paging.end
-      ? weekChart(state.week, day, today)
-      : null;
   return (
     <View style={styles.card}>
-      <View style={styles.cardHead}>
-        <Text style={styles.cardTitle}>{paging.title}</Text>
-        {chart ? (
-          <Text style={styles.small}>
-            {chart.workouts} {chart.workouts === 1 ? "workout" : "workouts"} ·{" "}
-            {chart.minutes} min
-          </Text>
-        ) : null}
-      </View>
-      <Text style={styles.small}>Minutes</Text>
-      <SwipeWeeks onEarlier={paging.earlier} onLater={paging.later}>
-        {chart ? (
-          <WeekBars
-            bars={chart.bars}
-            height={64}
-            ticks={[String(chart.top), String(chart.top / 2), "0"]}
-            onPick={(i) => {
-              if (state.kind !== "ready") return;
-              const picked = state.week.days[i].date;
-              onPick?.(picked === today ? null : picked);
-            }}
-            accessibilityLabel="Minutes worked out each day of this week. Swipe sideways for other weeks."
+      <WeekPager
+        day={day}
+        today={today}
+        renderHead={(title) => <Text style={styles.cardTitle}>{title}</Text>}
+        renderWeek={(end) => (
+          <WeekPage
+            reloadKey={reloadKey}
+            end={end}
+            day={day}
+            today={today}
+            onPick={onPick}
           />
-        ) : state.kind === "error" ? (
-          <Text style={styles.error}>{state.message}</Text>
-        ) : (
-          <ActivityIndicator />
         )}
-      </SwipeWeeks>
+      />
     </View>
   );
 }

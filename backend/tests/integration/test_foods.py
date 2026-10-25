@@ -251,7 +251,7 @@ def test_search_adds_usda_results_after_the_saved_ones(
         ("usda", True, None)
     ]
     assert isinstance(found["sources"][0]["took_ms"], int)
-    assert usda.asked == [("apple", 50, 1)]
+    assert usda.asked == [("apple", 30, 1)]
 
 
 def test_a_usda_result_can_be_saved_straight_from_the_search(
@@ -334,7 +334,7 @@ def test_show_more_asks_for_the_next_usda_page_and_skips_saved_foods(
     assert second["saved"] == []
     assert [food["name"] for food in second["results"]] == ["Apples, fuji"]
     assert second["has_more"] is False
-    assert usda.asked[-1] == ("apple", 50, 2)
+    assert usda.asked[-1] == ("apple", 30, 2)
 
 
 @pytest.mark.parametrize("page", [0, -1, 101])
@@ -453,7 +453,7 @@ def test_the_fallback_source_is_asked_when_there_are_few_close_matches(
     usda.results = [candidate("1", "Banana variety")]
     off.results = [candidate_from("off", "9", "Banana", "9", 89.0)]
     client.get(f"{BASE}/search", params={"q": "banana"}, headers=auth)
-    assert off.asked == [("banana", 50, 1)]
+    assert off.asked == [("banana", 30, 1)]
 
 
 def test_the_fallback_source_is_never_asked_for_later_pages(
@@ -479,7 +479,7 @@ def test_a_fast_search_never_waits_for_the_fallback_and_says_more_is_coming(
     assert body["more_coming"] is True
     # The follow-up (default scope) adds the slower database to the same ranked list.
     full = client.get(f"{BASE}/search", params={"q": "banana"}, headers=auth).json()
-    assert off.asked == [("banana", 50, 1)]
+    assert off.asked == [("banana", 30, 1)]
     assert {food["source_id"] for food in full["results"]} == {"1", "9"}
     assert full["more_coming"] is False
 
@@ -577,7 +577,7 @@ def test_the_fallback_source_is_also_asked_for_a_long_product_style_query(
     ]
     off.results = [candidate_from("off", "9", "Crunchy Peanut Butter", "9", 382.0)]
     body = client.get(f"{BASE}/search", params={"q": "peanut butter clif bar"}, headers=auth).json()
-    assert off.asked == [("peanut butter clif bar", 50, 1)]
+    assert off.asked == [("peanut butter clif bar", 30, 1)]
     assert "9" in [food["source_id"] for food in body["results"]]
 
 

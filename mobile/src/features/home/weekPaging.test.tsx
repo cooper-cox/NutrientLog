@@ -1,57 +1,29 @@
-import { act, renderHook } from "@testing-library/react-native";
-
-import { useWeekPaging } from "./weekPaging";
+import { weekStarts, weekTitle, WEEKS_BACK } from "./weekPaging";
 
 // 2026-10-20 is a Tuesday; its week runs Sunday 10/18 to Saturday 10/24.
-describe("useWeekPaging", () => {
-  it("starts on the week of the open day", () => {
-    const { result } = renderHook(() =>
-      useWeekPaging("2026-10-20", "2026-10-20"),
-    );
-    expect(result.current.end).toBe("2026-10-24");
-    expect(result.current.title).toBe("This week");
+describe("weekStarts", () => {
+  it("ends with the week that holds today, so later weeks cannot be reached", () => {
+    const starts = weekStarts("2026-10-20", "2026-10-20");
+    expect(starts[starts.length - 1]).toBe("2026-10-18");
+    expect(starts).toHaveLength(WEEKS_BACK);
   });
 
-  it("goes back week by week, and names the week", () => {
-    const { result } = renderHook(() =>
-      useWeekPaging("2026-10-20", "2026-10-20"),
-    );
-    act(() => result.current.earlier());
-    act(() => result.current.earlier());
-    expect(result.current.end).toBe("2026-10-10");
-    expect(result.current.title).toBe("Week of Sun, Oct 4");
+  it("lists whole Sundays, oldest first, one week apart", () => {
+    const starts = weekStarts("2026-10-20", "2026-10-20");
+    expect(starts[starts.length - 2]).toBe("2026-10-11");
+    expect([...starts].sort()).toEqual(starts);
   });
 
-  it("never goes later than the week that holds today", () => {
-    const { result } = renderHook(() =>
-      useWeekPaging("2026-10-20", "2026-10-20"),
-    );
-    act(() => result.current.later());
-    expect(result.current.end).toBe("2026-10-24");
-    act(() => result.current.earlier());
-    act(() => result.current.later());
-    act(() => result.current.later());
-    expect(result.current.end).toBe("2026-10-24");
+  it("reaches back further when the open day is older than the usual range", () => {
+    const starts = weekStarts("2025-01-08", "2026-10-20");
+    expect(starts[0]).toBe("2025-01-05");
+    expect(starts[starts.length - 1]).toBe("2026-10-18");
   });
+});
 
-  it("can move forward again from an older open day, up to today's week", () => {
-    const { result } = renderHook(() =>
-      useWeekPaging("2026-10-05", "2026-10-20"),
-    );
-    expect(result.current.end).toBe("2026-10-10");
-    act(() => result.current.later());
-    act(() => result.current.later());
-    act(() => result.current.later());
-    expect(result.current.end).toBe("2026-10-24");
-  });
-
-  it("starts from the new day's week when another day is opened", () => {
-    const { result, rerender } = renderHook(
-      ({ day }: { day: string }) => useWeekPaging(day, "2026-10-20"),
-      { initialProps: { day: "2026-10-20" } },
-    );
-    act(() => result.current.earlier());
-    rerender({ day: "2026-10-19" });
-    expect(result.current.end).toBe("2026-10-24");
+describe("weekTitle", () => {
+  it("says This week for today's week and names the others", () => {
+    expect(weekTitle("2026-10-18", "2026-10-20")).toBe("This week");
+    expect(weekTitle("2026-10-04", "2026-10-20")).toBe("Week of Sun, Oct 4");
   });
 });

@@ -264,7 +264,7 @@ def test_search_asks_for_the_requested_page_and_size() -> None:
     seen.clear()
     client.search("x", 5000)
     assert {sent(r)["pageSize"] for r in seen if types_of(r) == "branded"} == {200}
-    assert {sent(r)["pageSize"] for r in seen if types_of(r) == "generic"} == {60}
+    assert {sent(r)["pageSize"] for r in seen if types_of(r) == "generic"} == {40}
 
 
 def test_a_thin_strict_search_is_topped_up_with_partial_matches() -> None:
