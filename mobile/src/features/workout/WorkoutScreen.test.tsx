@@ -192,7 +192,7 @@ describe("WorkoutScreen", () => {
     expect(await screen.findByText("This week")).toBeTruthy();
     expect(await screen.findByText("2 workouts · 105 min")).toBeTruthy();
     expect(
-      screen.getByLabelText("Minutes worked out each day this week"),
+      screen.getByLabelText(/Minutes worked out each day of this week/),
     ).toBeTruthy();
     expect(screen.getByText(/Sun/)).toBeTruthy();
     expect(mockWeek).toHaveBeenCalledWith("2026-10-24"); // asks for Saturday, so Sunday is first

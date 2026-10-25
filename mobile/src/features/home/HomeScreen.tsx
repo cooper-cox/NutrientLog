@@ -14,14 +14,8 @@ import { ScreenHeader } from "../../ui/ScreenHeader";
 import { colors, type } from "../../ui/theme";
 import { kcalText } from "../food/amounts";
 import { DayBurn } from "./DayBurn";
-import {
-  dayLabel,
-  monthDay,
-  shiftDate,
-  shortDate,
-  weekdayShort,
-  weekStart,
-} from "./dates";
+import { SwipeWeeks, useWeekPaging } from "./weekPaging";
+import { dayLabel, monthDay, shortDate, weekdayShort } from "./dates";
 import { useDay } from "./useDay";
 import { useWeek } from "./useWeek";
 import { WeekBars } from "./WeekBars";
@@ -117,6 +111,62 @@ function weekBars(
   };
 }
 
+/** The calories chart: a fixed Sunday-to-Saturday week; swipe sideways for other weeks. */
+function WeekCard({
+  reloadKey,
+  day,
+  today,
+  onPick,
+}: {
+  reloadKey: number;
+  day: string;
+  today: string;
+  onPick?: (date: string | null) => void;
+}) {
+  const paging = useWeekPaging(day, today);
+  const { state } = useWeek(reloadKey, paging.end);
+  return (
+    <View style={styles.card}>
+      <View style={styles.cardHead}>
+        <Text style={styles.cardTitle}>{paging.title}</Text>
+        {state.kind === "ready" && state.week.average_calories !== null ? (
+          <Text style={styles.small}>
+            avg {kcalText(state.week.average_calories)}
+          </Text>
+        ) : null}
+      </View>
+      <SwipeWeeks onEarlier={paging.earlier} onLater={paging.later}>
+        {state.kind === "ready" && state.week.end === paging.end ? (
+          (() => {
+            const week = state.week;
+            const { bars, target } = weekBars(
+              week,
+              week.goal_calories,
+              day,
+              today,
+            );
+            return (
+              <WeekBars
+                bars={bars}
+                target={target}
+                onPick={(i) => {
+                  const picked = week.days[i].date;
+                  onPick?.(picked === today ? null : picked);
+                }}
+                accessibilityLabel="Calories eaten each day of this week, with the target as a dashed line. Swipe sideways for other weeks."
+              />
+            );
+          })()
+        ) : state.kind === "error" ? (
+          <Text style={styles.small}>{state.message}</Text>
+        ) : (
+          <ActivityIndicator />
+        )}
+      </SwipeWeeks>
+    </View>
+  );
+}
+
 /** Home: calories left for the day, last seven days, today's macros and what was burned. */
 export function HomeScreen({
   goal,
@@ -129,10 +179,6 @@ export function HomeScreen({
   const insets = useSafeAreaInsets();
   const { state, reload } = useDay(reloadKey, date);
   const day = state.kind === "ready" ? state.day : null;
-  // The chart is the fixed Sunday-to-Saturday week around the open day, so tapping a bar in it
-  // moves the highlight without moving the week.
-  const weekEnd = day ? shiftDate(weekStart(day.date), 6) : null;
-  const weekState = useWeek(reloadKey, weekEnd);
   const shown = day?.date ?? date;
   const isToday = date === null || (day !== null && day.date === day.today);
   const title = day
@@ -196,46 +242,12 @@ export function HomeScreen({
             </View>
           </View>
 
-          <View style={styles.card}>
-            <View style={styles.cardHead}>
-              <Text style={styles.cardTitle}>This week</Text>
-              {weekState.state.kind === "ready" &&
-              weekState.state.week.average_calories !== null ? (
-                <Text style={styles.small}>
-                  avg {kcalText(weekState.state.week.average_calories)}
-                </Text>
-              ) : null}
-            </View>
-            {weekState.state.kind === "ready" &&
-            weekState.state.week.end === weekEnd &&
-            day ? (
-              (() => {
-                const week = weekState.state.week;
-                const realToday = day.today;
-                const { bars, target } = weekBars(
-                  week,
-                  week.goal_calories,
-                  day.date,
-                  realToday,
-                );
-                return (
-                  <WeekBars
-                    bars={bars}
-                    target={target}
-                    onPick={(i) => {
-                      const picked = week.days[i].date;
-                      onPickDay?.(picked === realToday ? null : picked);
-                    }}
-                    accessibilityLabel="Calories eaten each day this week, with the target as a dashed line"
-                  />
-                );
-              })()
-            ) : weekState.state.kind === "error" ? (
-              <Text style={styles.small}>{weekState.state.message}</Text>
-            ) : (
-              <ActivityIndicator />
-            )}
-          </View>
+          <WeekCard
+            reloadKey={reloadKey}
+            day={day.date}
+            today={day.today}
+            onPick={onPickDay}
+          />
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>

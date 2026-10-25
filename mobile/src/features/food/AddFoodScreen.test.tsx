@@ -124,6 +124,30 @@ describe("AddFoodScreen", () => {
     expect(screen.getByText("89 kcal · 1.1 g protein per 100 g")).toBeTruthy();
   });
 
+  it("shows only the top 20 results, with Show more for the rest", async () => {
+    const many = Array.from({ length: 45 }, (_, i) => ({
+      ...BANANA,
+      source_id: `id${i}`,
+      name: `Soup ${i}`,
+    }));
+    mockSearch.mockResolvedValue({
+      saved: [],
+      results: many,
+      sources: [{ name: "usda", available: true, message: null }],
+      has_more: false,
+      more_coming: false,
+    });
+    renderScreen();
+    await type("Search foods", "soup");
+    expect(await screen.findByText("Soup 19")).toBeTruthy();
+    expect(screen.queryByText("Soup 20")).toBeNull();
+    // Adding by hand is right under the search box, not after the list.
+    expect(screen.getByLabelText("Add a food by hand")).toBeTruthy();
+    fireEvent.press(screen.getByRole("button", { name: "Show more" }));
+    expect(screen.getByText("Soup 39")).toBeTruthy();
+    expect(screen.queryByText("Soup 40")).toBeNull();
+  });
+
   it("shows the quick results at once, then swaps in the fuller list", async () => {
     const OFF_BANANA: FoodCandidate = {
       ...BANANA,

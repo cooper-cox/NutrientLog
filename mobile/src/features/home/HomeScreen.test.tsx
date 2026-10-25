@@ -116,7 +116,7 @@ describe("HomeScreen", () => {
     expect(screen.getByText("This week")).toBeTruthy();
     expect(await screen.findByText("avg 2800 kcal")).toBeTruthy();
     expect(
-      screen.getByLabelText(/Calories eaten each day this week/),
+      screen.getByLabelText(/Calories eaten each day of this week/),
     ).toBeTruthy();
   });
 
