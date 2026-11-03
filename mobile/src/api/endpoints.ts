@@ -78,6 +78,14 @@ export type DatabaseHealthResponse = {
 };
 
 /** Is the API process up? */
+/**
+ * Wakes a sleeping free-tier server. It can take up to a minute to answer after being idle, so
+ * this waits longer than any other call; once it has answered, the rest are fast.
+ */
+export function wakeServer(): Promise<HealthResponse> {
+  return apiGet<HealthResponse>("/health", { timeoutMs: 75000 });
+}
+
 export function getHealth(): Promise<HealthResponse> {
   return apiGet<HealthResponse>("/health");
 }

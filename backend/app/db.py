@@ -10,7 +10,11 @@ from app.settings import settings
 @lru_cache
 def get_engine() -> Engine:
     """Create the engine on first use, so importing the app never needs a database."""
-    return create_engine(settings.database_url, pool_pre_ping=True)
+    return create_engine(
+        settings.database_url,
+        pool_pre_ping=True,  # a free host closes idle connections; check before using one
+        pool_recycle=300,
+    )
 
 
 def get_session() -> Iterator[Session]:

@@ -2,7 +2,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { ApiError } from '../../api/client';
-import { getCurrentGoal, getProfile, type Goal, type Profile, type ProfileSaved } from '../../api/endpoints';
+import {
+  getCurrentGoal,
+  getProfile,
+  wakeServer,
+  type Goal,
+  type Profile,
+  type ProfileSaved,
+} from '../../api/endpoints';
 import { clearStoredToken, getStoredToken } from '../../storage/token';
 
 export type SessionState =
@@ -18,6 +25,7 @@ export async function loadSession(): Promise<SessionState> {
   if (!token) return { kind: 'needs-survey' };
 
   try {
+    await wakeServer();
     const profile = await getProfile(token);
     const goal = await getCurrentGoal(token);
     return { kind: 'ready', profile, goal };

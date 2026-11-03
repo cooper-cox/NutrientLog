@@ -1,0 +1,17 @@
+# Render "Blueprint": one free web service built from backend/Dockerfile.
+# The database is NOT created here (Render's free Postgres expires after 30 days); use Neon and
+# paste its address into DATABASE_URL in Render's dashboard. See docs/deploy.md.
+services:
+  - type: web
+    name: nutrientlog-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        sync: false # you type this in the dashboard; it is never stored in the repository
+      - key: USDA_API_KEY
+        sync: false

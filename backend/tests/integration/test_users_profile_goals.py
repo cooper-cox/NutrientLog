@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -397,3 +398,14 @@ def test_the_limits_endpoint_needs_no_login_and_matches_the_rules(client: TestCl
     assert body["min_age_years"] == 18
     assert body["max_weight_kg"] == 300
     assert body["min_goal_bmi_when_losing"] == 18.5
+
+
+def test_a_full_server_refuses_new_users(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app import auth
+
+    monkeypatch.setattr(auth, "settings", SimpleNamespace(accounts=SimpleNamespace(max_users=0)))
+    response = client.post("/api/v1/users")
+    assert response.status_code == 403
+    assert response.json()["detail"] == "This server is not accepting new users."

@@ -13,5 +13,6 @@ USER appuser
 
 EXPOSE 8000
 
-# Dev convenience: apply migrations, then start the API.
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+# Apply migrations, then start the API. Hosts such as Render say which port to use in $PORT.
+# (Running migrations at start is fine for one server; see known-limitations L21.)
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

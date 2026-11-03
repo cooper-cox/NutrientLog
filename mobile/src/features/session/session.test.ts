@@ -1,5 +1,5 @@
 import { ApiError } from '../../api/client';
-import { getCurrentGoal, getProfile, type Goal, type Profile } from '../../api/endpoints';
+import { getCurrentGoal, getProfile, wakeServer, type Goal, type Profile } from '../../api/endpoints';
 import { clearStoredToken, getStoredToken } from '../../storage/token';
 import { loadSession } from './session';
 
@@ -22,6 +22,28 @@ beforeEach(() => {
 });
 
 describe('loadSession', () => {
+  it('wakes a sleeping server before asking for the profile', async () => {
+    const order: string[] = [];
+    jest.mocked(wakeServer).mockImplementation(async () => {
+      order.push('wake');
+      return { status: 'ok' };
+    });
+    mockGetProfile.mockImplementation(async () => {
+      order.push('profile');
+      return PROFILE;
+    });
+    await loadSession();
+    expect(order).toEqual(['wake', 'profile']);
+  });
+
+  it('shows the error when the server never wakes up', async () => {
+    jest.mocked(wakeServer).mockRejectedValue(new ApiError('The server took too long to respond.'));
+    await expect(loadSession()).resolves.toEqual({
+      kind: 'error',
+      message: 'The server took too long to respond.',
+    });
+  });
+
   it('asks for the survey when there is no saved login', async () => {
     mockGetToken.mockResolvedValue(null);
     await expect(loadSession()).resolves.toEqual({ kind: 'needs-survey' });

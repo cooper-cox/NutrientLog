@@ -8,7 +8,7 @@ import os
 import tomllib
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -135,6 +135,12 @@ class Goals(_Section):
     calorie_floor: CalorieFloor
 
 
+class Accounts(_Section):
+    # A public server must not let anyone fill the free database with users. Raise this when
+    # friends start using the app (and before that, finish the v0.9 hardening list).
+    max_users: int = Field(ge=1, le=100000)
+
+
 class Profile(_Section):
     min_plausible_bmi: float = Field(ge=8, le=20)
     max_plausible_bmi: float = Field(ge=40, le=120)
@@ -172,6 +178,17 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=None, extra="ignore", frozen=True)
 
     database_url: str  # required: set DATABASE_URL (see .env.example)
+
+    @field_validator("database_url")
+    @classmethod
+    def _driver(cls, value: str) -> str:
+        """Hosts such as Neon hand out "postgresql://..." or "postgres://..." addresses; our
+        database driver needs "postgresql+psycopg://...", so the start is fixed here."""
+        for start in ("postgres://", "postgresql://"):
+            if value.startswith(start):
+                return "postgresql+psycopg://" + value[len(start) :]
+        return value
+
     # Free key from https://fdc.nal.usda.gov/api-key-signup. Empty turns the USDA lookup off.
     usda_api_key: str = ""
     # Open Food Facts needs no key. Set OPEN_FOOD_FACTS=false to turn it off.
@@ -180,7 +197,12 @@ class Settings(BaseSettings):
     # products that clutter English searches.
     open_food_facts_country: str = "united-states"
 
+    # Browser origins allowed to call the API (comma separated), only for a web build of the app.
+    # The phone app is not a browser and needs none.
+    cors_origins: str = ""
+
     ranking: Ranking
+    accounts: Accounts
     search: Search
     food: FoodLimits
     portions: Portions
