@@ -10,11 +10,12 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db import get_session
 from app.models import User, UserSettings
+from app.settings import settings
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -28,7 +29,11 @@ def hash_token(token: str) -> str:
 
 
 def create_anonymous_user(session: Session) -> tuple[User, str]:
-    """Create a new anonymous user. Returns the user and their token (the only time it is known)."""
+    """Create a new anonymous user. Returns the user and their token (the only time it is known).
+
+    Refuses (403) once the server already has `accounts.max_users` users."""
+    if (session.scalar(select(func.count()).select_from(User)) or 0) >= settings.accounts.max_users:
+        raise HTTPException(status_code=403, detail="This server is not accepting new users.")
     token = generate_token()
     user = User(token_hash=hash_token(token), settings=UserSettings(unit_preference="metric"))
     session.add(user)

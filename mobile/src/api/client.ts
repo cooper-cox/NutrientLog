@@ -38,7 +38,7 @@ export type RequestOptions = {
 
 type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
-const DEFAULT_TIMEOUT_MS = 8000;
+const DEFAULT_TIMEOUT_MS = 15000;
 
 /** The server's error format is { detail: string, errors?: [{ field, message }] }. */
 async function readProblem(

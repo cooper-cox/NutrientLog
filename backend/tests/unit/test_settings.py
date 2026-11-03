@@ -46,3 +46,16 @@ def test_the_database_address_has_no_built_in_default(monkeypatch: pytest.Monkey
     monkeypatch.delenv("DATABASE_URL", raising=False)
     with pytest.raises(ValidationError):
         Settings(**load_config())  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "given",
+    [
+        "postgres://u:p@host/db?sslmode=require",
+        "postgresql://u:p@host/db?sslmode=require",
+        "postgresql+psycopg://u:p@host/db?sslmode=require",
+    ],
+)
+def test_a_hosts_database_address_is_fixed_for_our_driver(given: str) -> None:
+    settings = Settings(database_url=given, **load_config())  # type: ignore[arg-type]
+    assert settings.database_url == "postgresql+psycopg://u:p@host/db?sslmode=require"

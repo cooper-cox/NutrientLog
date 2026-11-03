@@ -1,6 +1,6 @@
 import { StatusBar } from "expo-status-bar";
-import { useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { AppState, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { formFromProfile } from "./src/features/onboarding/survey";
@@ -12,6 +12,8 @@ import { WorkoutScreen } from "./src/features/workout/WorkoutScreen";
 import { CalendarOverlay } from "./src/features/home/CalendarOverlay";
 import { HomeScreen } from "./src/features/home/HomeScreen";
 import { ProfileScreen } from "./src/features/profile/ProfileScreen";
+import { wakeServer } from "./src/api/endpoints";
+import { LoadingScreen } from "./src/features/session/LoadingScreen";
 import { useSession } from "./src/features/session/session";
 import { Button } from "./src/ui/components";
 import { TabBar, type TabName } from "./src/ui/TabBar";
@@ -28,6 +30,13 @@ function Screens() {
   // The day being looked at (YYYY-MM-DD); null is today. Food and Workout add to it.
   const [viewDate, setViewDate] = useState<string | null>(null);
   const [checkingConnection, setCheckingConnection] = useState(false);
+  // Coming back to the app after a while: give a sleeping server a head start on waking up.
+  useEffect(() => {
+    const listener = AppState.addEventListener("change", (next) => {
+      if (next === "active") wakeServer().catch(() => {});
+    });
+    return () => listener.remove();
+  }, []);
   // True right after the first survey, until the person taps Start on the welcome screen.
   const [welcome, setWelcome] = useState(false);
 
@@ -37,19 +46,16 @@ function Screens() {
 
   switch (state.kind) {
     case "loading":
-      return (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color={colors.muted} />
-          <Text style={styles.message}>Loading…</Text>
-        </View>
-      );
+      return <LoadingScreen />;
     case "error":
       return (
         <View style={styles.centered}>
           <Text style={styles.message}>{state.message}</Text>
           <Text style={styles.hint}>
-            Is the backend running (docker compose up), and are your phone and
-            computer on the same Wi-Fi network?
+            If the server was asleep it can take up to a minute to wake, so try
+            again in a moment. Running it on your own computer? Check that it is
+            running (docker compose up) and that your phone and computer are on
+            the same Wi-Fi network.
           </Text>
           <View style={styles.buttons}>
             <Button title="Try again" onPress={retry} />

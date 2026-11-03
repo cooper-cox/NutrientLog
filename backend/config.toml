@@ -23,6 +23,9 @@ close_word = 0.8          # credit for a typed word that is the start of a name 
 plural_only = 0.9         # credit when a typed plural only matches a singular
 typo_word = 0.7           # credit for a word one letter off ("chiken")
 
+[accounts]
+max_users = 25                 # new anonymous users the server accepts in total (protects a public free database)
+
 [search]
 saved_limit = 10               # saved foods shown per search
 source_limit = 30              # results asked of each outside database, per page
